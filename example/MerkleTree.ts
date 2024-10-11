@@ -11,7 +11,7 @@ export abstract class MerkleTree<K, V> {
 
     private readonly MINIMUM_VALUES = 2; // To generate a tree, we need at least 2 values
 
-    protected constructor(protected readonly treeType: [string, string]) {}
+    protected constructor(protected readonly treeType: [string, string]) { }
 
     get root(): string {
         if (!this.tree) {

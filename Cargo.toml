@@ -17,6 +17,9 @@ bytemuck = "1.18.0"
 futures = "0.3.30"
 hex = "0.4.3"
 bytes = "1.7.2"
+rs_merkle = "1.4.2"
+sha2 = { version = "0.10", default-features = false }
+itertools = "0.13.0"
 
 [build-dependencies]
 napi-build = "2.1.3"

@@ -36,12 +36,6 @@
             "node_modules/@types"
         ]
     },
-    "include": [
-        "src/**/*.ts",
-        "src/*",
-        "src/**/*.js",
-        "src/*.ts",
-        "src/*.js",
-        "src/*.cjs"
-    ]
+    "include": ["."],
+    "exclude": ["node_modules", "bench", "__test__"]
 }
