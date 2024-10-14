@@ -398,9 +398,17 @@ export class ReceiptMerkleTreeNew extends MerkleTreeNew<string, Buffer> {
     }
 }
 
+/*
+function generateData<T>(number: Number): T {
+    const merkle = new T()
+    return merkle
+
+}
+*/
+
 
 test('Test ReceiptMerkleTree compatibility', (t) => {
-    const cnt = 1
+    const cnt = 10000
 
     let merkleOld = null
     let proofOld = null

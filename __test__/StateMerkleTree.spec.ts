@@ -476,7 +476,7 @@ export class StateMerkleTreeNew extends MerkleTreeNew<MemorySlotPointer, MemoryS
 }
 
 test('Test StateMerkleTree compatibility', (t) => {
-    const cnt = 1
+    const cnt = 10000
 
     let merkleOld = null
     let proofOld = null

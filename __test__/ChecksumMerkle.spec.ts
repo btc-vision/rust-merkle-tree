@@ -171,7 +171,7 @@ export class ChecksumMerkleNew {
 
 
 test('Test ChecksumMerkle compatibility', (t) => {
-    const cnt = 1
+    const cnt = 10000
 
     let start = new Date()
     let merkleNew = null
