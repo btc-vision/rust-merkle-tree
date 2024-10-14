@@ -33,7 +33,7 @@
         "@btc-vision/bsi-binary": "github:btc-vision/bsi-binary",
         "@btc-vision/merkle-tree": "github:btc-vision/merkle-tree-sha256",
         "@ethersproject/abi": "^5.7.0",
-        "@swc-node/register": "^1.10.9",
+        "@swc-node/register": "^1.10.9"
     },
     "ava": {
         "extensions": {
