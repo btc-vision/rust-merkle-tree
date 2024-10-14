@@ -58,15 +58,15 @@ impl MerkleTreeInner {
         .iter()
         .flatten()
         .enumerate()
-        .find(|(i, &l)| l.eq(hash))
-        .map(|(i, l)| i),
+        .find(|(_, &l)| l.eq(hash))
+        .map(|(i, _)| i),
       Self::UnOrdered(tree) => tree
         .leaves()
         .iter()
         .flatten()
         .enumerate()
-        .find(|(i, &l)| l.eq(hash))
-        .map(|(i, l)| i),
+        .find(|(_, &l)| l.eq(hash))
+        .map(|(i, _)| i),
       _ => None,
     }
   }
