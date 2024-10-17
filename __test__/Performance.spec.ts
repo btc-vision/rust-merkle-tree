@@ -1,5 +1,5 @@
 import { StandardMerkleTree } from '@btc-vision/merkle-tree'
-import { MerkleTree, MerkleProof } from '..'
+import { MerkleTree } from '..'
 import { defaultAbiCoder } from '@ethersproject/abi'
 import { arrayify as toBytes } from '@ethersproject/bytes'
 import test from 'ava'
@@ -38,14 +38,69 @@ test('Test Performance compatibility', (t) => {
             const newProof = newTree.getProof(newTree.getIndexData(objToBytes(d))).proofHashesHex()
             const newPerfDiff = performance.now() - now
             newPerf += newPerfDiff
-
-            //console.log("NEW: ", newPerf)
-
-            console.log("Perf: ", i, newPerfDiff, oldPerfDiff)
             t.deepEqual(oldProof, newProof)
         }
     }
 
-    console.log("Perf: ", newPerf, oldPerf)
+    console.log("Performance data lookup: ", newPerf, oldPerf)
     t.assert(newPerf < oldPerf)
 })
+
+test('Test Performance compatibility indexed', (t) => {
+    let oldPerf = 0
+    let newPerf = 0
+    let now = 0
+
+    for (let i = 2; i < 2 ** 14; i *= 2) {
+        const data: [string][] = Array.from(Array(i).keys()).map(n => [String(n)])
+        now = performance.now()
+        const oldTree = StandardMerkleTree.of<[string]>(data, ['string'], { sortLeaves: true })
+        oldPerf += performance.now() - now
+
+        now = performance.now()
+        const newTree = new MerkleTree(data.map(d => objToBytes(d)), true)
+        newPerf += performance.now() - now
+
+        t.assert(oldTree.root, newTree.rootHex())
+
+        for (let i = 0; i < data.length; i++) {
+            now = performance.now()
+            const oldProof = oldTree.getProof(i)
+            const oldPerfDiff = performance.now() - now
+            oldPerf += oldPerfDiff
+
+            now = performance.now()
+            const newProof = newTree.getProof(i).proofHashesHex()
+            const newPerfDiff = performance.now() - now
+            newPerf += newPerfDiff
+
+            t.deepEqual(oldProof, newProof)
+        }
+    }
+
+    console.log("Performance indexed: ", newPerf, oldPerf)
+    t.assert(newPerf < oldPerf)
+})
+
+test('Test Performance', (t) => {
+    let oldPerf = 0
+    let newPerf = 0
+    let now = 0
+
+    for (let i = 2; i < 2 ** 14; i *= 2) {
+        const data: [string][] = Array.from(Array(i).keys()).map(n => [String(n)])
+        now = performance.now()
+        const oldTree = StandardMerkleTree.of<[string]>(data, ['string'], { sortLeaves: true })
+        oldPerf += performance.now() - now
+
+        now = performance.now()
+        const newTree = new MerkleTree(data.map(d => objToBytes(d)), true)
+        newPerf += performance.now() - now
+
+        t.assert(oldTree.root, newTree.rootHex())
+    }
+
+    console.log("Performance building: ", newPerf, oldPerf)
+    t.assert(newPerf < oldPerf)
+})
+
