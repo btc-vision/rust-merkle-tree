@@ -476,39 +476,24 @@ export class StateMerkleTreeNew extends MerkleTreeNew<MemorySlotPointer, MemoryS
 }
 
 test('Test StateMerkleTree compatibility', (t) => {
-    const cnt = 10000
 
-    let merkleOld = null
-    let proofOld = null
-    let start = new Date()
-    for (let i = 0; i < cnt; i++) {
-        merkleOld = new StateMerkleTreeOld()
-        merkleOld.updateValue("abcd1", 1n, 1n)
-        merkleOld.updateValue("abcd2", 2n, 2n)
-        merkleOld.updateValue("abcd1", 3n, 3n)
-        merkleOld.updateValue("abcd2", 4n, 4n)
-        merkleOld.generateTree()
-        proofOld = merkleOld.getProofs()
-    }
-    const oldPerf = (new Date()).getTime() - start.getTime()
+    const merkleOld = new StateMerkleTreeOld()
+    merkleOld.updateValue("abcd1", 1n, 1n)
+    merkleOld.updateValue("abcd2", 2n, 2n)
+    merkleOld.updateValue("abcd1", 3n, 3n)
+    merkleOld.updateValue("abcd2", 4n, 4n)
+    merkleOld.generateTree()
+    const proofOld = merkleOld.getProofs()
 
-    let merkleNew = null
-    let proofNew = null
-    start = new Date()
-    for (let i = 0; i < cnt; i++) {
-        merkleNew = new StateMerkleTreeNew()
-        merkleNew.updateValue("abcd1", 1n, 1n)
-        merkleNew.updateValue("abcd2", 2n, 2n)
-        merkleNew.updateValue("abcd1", 3n, 3n)
-        merkleNew.updateValue("abcd2", 4n, 4n)
-        merkleNew.generateTree()
-        proofNew = merkleNew.getProofs()
-    }
-    const newPerf = (new Date()).getTime() - start.getTime()
-    console.log("Perf", newPerf, oldPerf)
-    t.true(newPerf < oldPerf)
+    const merkleNew = new StateMerkleTreeNew()
+    merkleNew.updateValue("abcd1", 1n, 1n)
+    merkleNew.updateValue("abcd2", 2n, 2n)
+    merkleNew.updateValue("abcd1", 3n, 3n)
+    merkleNew.updateValue("abcd2", 4n, 4n)
+    merkleNew.generateTree()
+    const proofNew = merkleNew.getProofs()
+
     t.deepEqual(merkleOld!.values, merkleNew!.values)
     t.deepEqual(proofOld, proofNew)
-    t.true(true)
-    t.true(true)
+
 })

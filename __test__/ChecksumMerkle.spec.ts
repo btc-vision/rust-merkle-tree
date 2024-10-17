@@ -12,7 +12,7 @@ import { StandardMerkleTree } from '@btc-vision/merkle-tree'
 // Old reference from @btc-vision/merkle-tree-sha256
 export class ChecksumMerkleOld {
     public static TREE_TYPE: [string, string] = ['uint8', 'bytes32'];
-    protected tree: StandardMerkleTree<[number, Uint8Array]> | undefined;
+    public tree: StandardMerkleTree<[number, Uint8Array]> | undefined;
     public values: [number, Uint8Array][] = [];
 
     public get root(): string {
@@ -97,16 +97,13 @@ export class ChecksumMerkleOld {
 // New implementation of ChecksumMerkle
 export class ChecksumMerkleNew {
     public static TREE_TYPE: [string, string] = ['uint8', 'bytes32'];
-    protected tree: MerkleTree;
+    public tree: MerkleTree | undefined
+    public values: [number, Uint8Array][] = [];
 
     public static toBytes(value: any): Uint8Array {
         const data = defaultAbiCoder.encode(ChecksumMerkleNew.TREE_TYPE, value)
         const result = toBytes(data)
         return result
-    }
-
-    public constructor() {
-        this.tree = new MerkleTree()
     }
 
     public get root(): string | null {
@@ -118,10 +115,11 @@ export class ChecksumMerkleNew {
 
     public static verify(
         root: string,
-        value: Uint8Array,
+        hash: Uint8Array,
         proof: string[],
     ): boolean {
-        return MerkleProof.verifyOrdered(toBytes(root), value, proof.map(p => toBytes(p)));
+        return new MerkleProof(proof.map(p => toBytes(p))).verify(toBytes(root), hash)
+
     }
 
     public validate(): void {
@@ -138,12 +136,12 @@ export class ChecksumMerkleNew {
         blockStateRoot: string,
         blockReceiptRoot: string,
     ): void {
-        this.tree.insert(ChecksumMerkleNew.toBytes([0, BufferHelper.hexToUint8Array(previousBlockHash || ZERO_HASH)]));
-        this.tree.insert(ChecksumMerkleNew.toBytes([1, BufferHelper.hexToUint8Array(previousBlockChecksum || ZERO_HASH)]))
-        this.tree.insert(ChecksumMerkleNew.toBytes([2, BufferHelper.hexToUint8Array(blockHash || ZERO_HASH)]));
-        this.tree.insert(ChecksumMerkleNew.toBytes([3, BufferHelper.hexToUint8Array(blockMerkleRoot || ZERO_HASH)]));
-        this.tree.insert(ChecksumMerkleNew.toBytes([4, BufferHelper.hexToUint8Array(blockStateRoot || ZERO_HASH)]));
-        this.tree.insert(ChecksumMerkleNew.toBytes([5, BufferHelper.hexToUint8Array(blockReceiptRoot || ZERO_HASH)]));
+        this.values.push([0, BufferHelper.hexToUint8Array(previousBlockHash || ZERO_HASH)]);
+        this.values.push([1, BufferHelper.hexToUint8Array(previousBlockChecksum || ZERO_HASH)]);
+        this.values.push([2, BufferHelper.hexToUint8Array(blockHash || ZERO_HASH)]);
+        this.values.push([3, BufferHelper.hexToUint8Array(blockMerkleRoot || ZERO_HASH)]);
+        this.values.push([4, BufferHelper.hexToUint8Array(blockStateRoot || ZERO_HASH)]);
+        this.values.push([5, BufferHelper.hexToUint8Array(blockReceiptRoot || ZERO_HASH)]);
 
         this.generateTree();
     }
@@ -156,8 +154,7 @@ export class ChecksumMerkleNew {
         const hashes = this.tree.hashes()
         for (let i = 0; i < hashes.length; i++) {
             const hash = hashes[i]
-            const indices = new Uint32Array([this.tree.getLeafIndex(hash)!])
-            result.push([Number(i), this.tree.proof(indices).proofHashesHex()])
+            result.push([Number(i), this.tree.getProof(this.tree.getIndexHash(hash)).proofHashesHex()])
         }
 
 
@@ -165,53 +162,35 @@ export class ChecksumMerkleNew {
     }
 
     private generateTree(): void {
-        this.tree.generateTree()
+        this.tree = new MerkleTree(this.values.map(v => ChecksumMerkleNew.toBytes(v)))
     }
 }
 
 
 test('Test ChecksumMerkle compatibility', (t) => {
-    const cnt = 10000
+    const merkleOld = new ChecksumMerkleOld()
+    merkleOld.setBlockData(
+        '0x6a1a20cf378c68b915be2d0f9a898f7006d874ce8ccf2a1d061ba688b3b8e8d1',
+        '0x00000000000000000000c7430d04e6cce6e8f52e8d342528deb78fbf76939fe0',
+        '0x000000000000000000003b485da71d761e3946459e33301e9227005014d32fe3',
+        '0x000000000000000000020c661d8d78de9105a8d79a8fd8bc6b70e94a17762ef1',
+        '0x0000000000000000000151f64e37678510ad013b25e6f4198c8fcb139079ca8c',
+        '0x00000000000000000002e7eb918cbc3b0c30e7c924194d593d99949c334f89ea')
+    const proofOld = merkleOld.getProofs()
 
-    let start = new Date()
-    let merkleNew = null
-    let proofNew = null
-    for (let i = 0; i < cnt; i++) {
-        merkleNew = new ChecksumMerkleNew()
-        merkleNew.setBlockData(
-            '0x6a1a20cf378c68b915be2d0f9a898f7006d874ce8ccf2a1d061ba688b3b8e8d1',
-            '0x00000000000000000000c7430d04e6cce6e8f52e8d342528deb78fbf76939fe0',
-            '0x000000000000000000003b485da71d761e3946459e33301e9227005014d32fe3',
-            '0x000000000000000000020c661d8d78de9105a8d79a8fd8bc6b70e94a17762ef1',
-            '0x0000000000000000000151f64e37678510ad013b25e6f4198c8fcb139079ca8c',
-            '0x00000000000000000002e7eb918cbc3b0c30e7c924194d593d99949c334f89ea')
-        proofNew = merkleNew.getProofs()
-    }
-    const new_perf = (new Date()).getTime() - start.getTime()
+    const merkleNew = new ChecksumMerkleNew()
+    merkleNew.setBlockData(
+        '0x6a1a20cf378c68b915be2d0f9a898f7006d874ce8ccf2a1d061ba688b3b8e8d1',
+        '0x00000000000000000000c7430d04e6cce6e8f52e8d342528deb78fbf76939fe0',
+        '0x000000000000000000003b485da71d761e3946459e33301e9227005014d32fe3',
+        '0x000000000000000000020c661d8d78de9105a8d79a8fd8bc6b70e94a17762ef1',
+        '0x0000000000000000000151f64e37678510ad013b25e6f4198c8fcb139079ca8c',
+        '0x00000000000000000002e7eb918cbc3b0c30e7c924194d593d99949c334f89ea')
+    const proofNew = merkleNew.getProofs()
 
-    start = new Date()
-    let merkleOld = null
-    let proofOld = null
-
-    for (let i = 0; i < cnt; i++) {
-        merkleOld = new ChecksumMerkleOld()
-        merkleOld.setBlockData(
-            '0x6a1a20cf378c68b915be2d0f9a898f7006d874ce8ccf2a1d061ba688b3b8e8d1',
-            '0x00000000000000000000c7430d04e6cce6e8f52e8d342528deb78fbf76939fe0',
-            '0x000000000000000000003b485da71d761e3946459e33301e9227005014d32fe3',
-            '0x000000000000000000020c661d8d78de9105a8d79a8fd8bc6b70e94a17762ef1',
-            '0x0000000000000000000151f64e37678510ad013b25e6f4198c8fcb139079ca8c',
-            '0x00000000000000000002e7eb918cbc3b0c30e7c924194d593d99949c334f89ea')
-        proofOld = merkleOld.getProofs()
-    }
-    const old_perf = (new Date()).getTime() - start.getTime()
 
     t.deepEqual(proofOld, proofNew)
     t.deepEqual(merkleOld!.root, merkleNew!.root)
-    t.true(new_perf < old_perf)
     t.true(ChecksumMerkleOld.verify(merkleOld?.root!, ChecksumMerkleOld.TREE_TYPE, merkleOld?.values[0]!, proofOld![0][1]))
-    t.true(MerkleProof.verifyOrdered(toBytes(merkleNew?.root!), MerkleTree.hash(ChecksumMerkleNew.toBytes(merkleOld?.values[0]!)), proofOld![0][1].map(p => toBytes(p))))
-    t.true(MerkleProof.verifyUnordered(toBytes(merkleNew?.root!), new Uint32Array([0]), [MerkleTree.hash(ChecksumMerkleNew.toBytes(merkleOld?.values[0]!))], proofOld![0][1].map(p => toBytes(p)), merkleOld?.values.length!))
-
-    console.log("Perf", new_perf, old_perf)
+    t.true(new MerkleProof(proofOld![0][1].map(p => toBytes(p))).verify(toBytes(merkleNew?.root!), MerkleTree.hash(ChecksumMerkleNew.toBytes(merkleOld?.values[0]!))))
 })

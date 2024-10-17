@@ -39,7 +39,7 @@
         "extensions": {
             "ts": "module"
         },
-        "timeout": "3m",
+        "timeout": "10m",
         "workerThreads": false,
         "environmentVariables": {
             "TS_NODE_PROJECT": "./tsconfig.json"

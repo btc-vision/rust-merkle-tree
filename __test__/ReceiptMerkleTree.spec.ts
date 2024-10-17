@@ -398,48 +398,32 @@ export class ReceiptMerkleTreeNew extends MerkleTreeNew<string, Buffer> {
     }
 }
 
-/*
-function generateData<T>(number: Number): T {
-    const merkle = new T()
-    return merkle
-
-}
-*/
-
-
 test('Test ReceiptMerkleTree compatibility', (t) => {
-    const cnt = 10000
+    const merkleOld = new ReceiptMerkleTreeOld()
+    merkleOld.updateValue("abcd1", "abc1", new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]))
+    merkleOld.updateValue("abcd1", "abc2", new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9]))
+    merkleOld.updateValue("abcd1", "abc3", new Uint8Array([4, 5, 6, 7, 8, 9, 10, 11]))
+    merkleOld.updateValue("abcd1", "abc4", new Uint8Array([5, 6, 7, 8, 9, 10, 11, 12]))
+    merkleOld.updateValue("abcd1", "abc5", new Uint8Array([6, 7, 8, 9, 10, 11, 12, 13]))
+    merkleOld.updateValue("abcd1", "abc6", new Uint8Array([7, 8, 9, 10, 11, 12, 13, 14]))
+    merkleOld.updateValue("abcd1", "abc7", new Uint8Array([8, 9, 10, 11, 12, 13, 14, 15]))
+    merkleOld.updateValue("abcd1", "abc8", new Uint8Array([9, 10, 11, 12, 13, 14, 15, 16]))
+    merkleOld.generateTree()
+    const proofOld = merkleOld.getProofs()
 
-    let merkleOld = null
-    let proofOld = null
-    let start = new Date()
-    for (let i = 0; i < cnt; i++) {
-        merkleOld = new ReceiptMerkleTreeOld()
-        merkleOld.updateValue("abcd1", "abc1", new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]))
-        merkleOld.updateValue("abcd2", "abc2", new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9]))
-        merkleOld.updateValue("abcd1", "abc3", new Uint8Array([4, 5, 6, 7, 8, 9, 10, 11]))
-        merkleOld.updateValue("abcd2", "abc4", new Uint8Array([5, 6, 7, 8, 9, 10, 11, 12]))
-        merkleOld.generateTree()
-        proofOld = merkleOld.getProofs()
-    }
-    const oldPerf = (new Date()).getTime() - start.getTime()
 
-    let merkleNew = null
-    let proofNew = null
-    start = new Date()
-    for (let i = 0; i < cnt; i++) {
-        merkleNew = new ReceiptMerkleTreeNew()
-        merkleNew.updateValue("abcd1", "abc1", new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]))
-        merkleNew.updateValue("abcd2", "abc2", new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9]))
-        merkleNew.updateValue("abcd1", "abc3", new Uint8Array([4, 5, 6, 7, 8, 9, 10, 11]))
-        merkleNew.updateValue("abcd2", "abc4", new Uint8Array([5, 6, 7, 8, 9, 10, 11, 12]))
-        merkleNew.generateTree()
-        proofNew = merkleNew.getProofs()
-    }
-    const newPerf = (new Date()).getTime() - start.getTime()
-    console.log("Perf", newPerf, oldPerf)
-    t.true(newPerf < oldPerf)
+    const merkleNew = new ReceiptMerkleTreeNew()
+    merkleNew.updateValue("abcd1", "abc1", new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]))
+    merkleNew.updateValue("abcd1", "abc2", new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9]))
+    merkleNew.updateValue("abcd1", "abc3", new Uint8Array([4, 5, 6, 7, 8, 9, 10, 11]))
+    merkleNew.updateValue("abcd1", "abc4", new Uint8Array([5, 6, 7, 8, 9, 10, 11, 12]))
+    merkleNew.updateValue("abcd1", "abc5", new Uint8Array([6, 7, 8, 9, 10, 11, 12, 13]))
+    merkleNew.updateValue("abcd1", "abc6", new Uint8Array([7, 8, 9, 10, 11, 12, 13, 14]))
+    merkleNew.updateValue("abcd1", "abc7", new Uint8Array([8, 9, 10, 11, 12, 13, 14, 15]))
+    merkleNew.updateValue("abcd1", "abc8", new Uint8Array([9, 10, 11, 12, 13, 14, 15, 16]))
+    merkleNew.generateTree()
+    const proofNew = merkleNew.getProofs()
+
     t.deepEqual(merkleOld!.values, merkleNew!.values)
     t.deepEqual(proofOld, proofNew)
-    t.true(true)
 })

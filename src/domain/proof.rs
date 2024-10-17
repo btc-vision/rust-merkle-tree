@@ -1,89 +1,85 @@
-use super::hash::{Sha256Ordered, Sha256UnOrdered};
-use rs_merkle::{Error, ErrorKind, Hasher, MerkleProof};
+use super::tree::MerkleTreeTrait;
+use std::marker::PhantomData;
 
-pub enum MerkleProofInner {
-  Ordered(MerkleProof<Sha256Ordered>),
-  UnOrdered(MerkleProof<Sha256UnOrdered>),
-  None,
+#[derive(Default, Debug, PartialEq, Eq)]
+pub struct MerkleProofInner<T>
+where
+  T: MerkleTreeTrait,
+{
+  hashes: Vec<Vec<u8>>,
+  phantom: PhantomData<T>,
 }
 
-impl MerkleProofInner {
-  pub fn new_ordered(proof_hashes: Vec<[u8; 32]>) -> Self {
-    MerkleProofInner::Ordered(MerkleProof::new(proof_hashes))
-  }
-
-  pub fn new_unordered(proof_hashes: Vec<[u8; 32]>) -> Self {
-    MerkleProofInner::UnOrdered(MerkleProof::new(proof_hashes))
-  }
-
-  pub fn proof_hashes(&self) -> Vec<[u8; 32]> {
-    match self {
-      MerkleProofInner::Ordered(proof) => proof.proof_hashes().to_vec(),
-      MerkleProofInner::UnOrdered(proof) => proof.proof_hashes().to_vec(),
-      _ => Vec::new(),
+impl<T> MerkleProofInner<T>
+where
+  T: MerkleTreeTrait,
+{
+  pub fn new_from_proof(proof_hashes: Vec<Vec<u8>>) -> Self {
+    Self {
+      hashes: proof_hashes,
+      phantom: PhantomData,
     }
   }
 
-  pub fn from_bytes_ordered(bytes: &[u8]) -> Result<Self, rs_merkle::Error> {
-    Ok(MerkleProofInner::Ordered(MerkleProof::from_bytes(bytes)?))
+  pub fn proof_hashes(&self) -> Vec<Vec<u8>> {
+    self.hashes.clone()
   }
 
-  pub fn from_bytes_unordered(bytes: &[u8]) -> Result<Self, rs_merkle::Error> {
-    Ok(MerkleProofInner::UnOrdered(MerkleProof::from_bytes(bytes)?))
-  }
-
-  pub fn root(
-    &self,
-    leaf_indices: Vec<usize>,
-    leaf_hashes: Vec<[u8; 32]>,
-    total_leaves_count: usize,
-  ) -> Result<[u8; 32], Error> {
-    match self {
-      MerkleProofInner::Ordered(proof) => {
-        proof.root(&leaf_indices, &leaf_hashes, total_leaves_count)
-      }
-      MerkleProofInner::UnOrdered(proof) => {
-        proof.root(&leaf_indices, &leaf_hashes, total_leaves_count)
-      }
-      _ => Err(Error::new(
-        ErrorKind::NotEnoughHelperNodes,
-        String::from("Merkle proof is not generated"),
-      )),
-    }
-  }
-
-  pub fn verify_ordered(root: [u8; 32], hash: [u8; 32], proof_hashes: &[[u8; 32]]) -> bool {
-    proof_hashes
+  pub fn root(&self, hash: &[u8]) -> Vec<u8> {
+    self
+      .hashes
       .iter()
-      .fold(hash, |acc, hash| {
-        let result = Sha256Ordered::concat_and_hash(&acc, Some(hash));
-        print!(
-          "{} {} {}",
-          hex::encode(acc),
-          hex::encode(hash),
-          hex::encode(root)
-        );
-        result
-      })
-      .eq(&root)
+      .fold(hash.to_vec(), |acc, hash| T::hash_nodes(&acc, hash))
   }
 
-  pub fn verify_unordered(
-    root: [u8; 32],
-    leaf_indices: &[usize],
-    leaf_hashes: &[[u8; 32]],
-    proof_hashes: &[[u8; 32]],
-    total_leaves_count: usize,
-  ) -> bool {
-    let tree: MerkleProof<Sha256Ordered> = MerkleProof::new(proof_hashes.to_vec());
-    tree.verify(root, leaf_indices, leaf_hashes, total_leaves_count)
+  pub fn verify(&self, root: &[u8], hash: &[u8]) -> bool {
+    self.root(hash).eq(root)
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::super::tree::MerkleTreeSha256;
+  use super::MerkleProofInner;
+
+  #[test]
+  fn test_root() {
+    assert_eq!(
+      MerkleProofInner::<MerkleTreeSha256>::new_from_proof(
+        [
+          "39e429c0920f4089a43dbe24a7dfcfe0552bdaabfcc9356cde88f9ea18972bf4",
+          "7c6ecaee2d838527c849bbb35e136530f348f2fce5de833c1c58ee30c3991ab7",
+          "6c593e5a24d589e6af9be6017957b176fc64d3409ede4c22e07d1bebf0b8c90c",
+          "698a6ec0545045c135267cd7b40d912d66437e50e0ba74a4b6e9d1f6d17abdf3",
+        ]
+        .iter()
+        .map(|h| hex::decode(h).unwrap())
+        .collect()
+      )
+      .root(
+        &hex::decode("c67892017db365f15687b283fea0741145e1b54a62430fd814e1755c6e25949e").unwrap()
+      ),
+      hex::decode("cacbbfa8cec522f5d5e306251bc7115dd88d7ef44f0cf3a84dbddc65481b63fa").unwrap()
+    )
   }
 
-  pub fn to_bytes(&self) -> Vec<u8> {
-    match self {
-      MerkleProofInner::Ordered(proof) => proof.to_bytes(),
-      MerkleProofInner::UnOrdered(proof) => proof.to_bytes(),
-      _ => Vec::new(),
-    }
+  #[test]
+  fn test_proof() {
+    // 18
+    assert!(MerkleProofInner::<MerkleTreeSha256>::new_from_proof(
+      [
+        "5d351e5962324a1b9920278825ca07b94d020b34941d20d5ac0f44dbbf3a5258",
+        "aae47106d882563487de43ea5c0ac5ec53a60e2d3cc9a88f93b0d33cf0c78ddc",
+        "4d42ca27311b1512c3d3cd5ac07864264b096981cbc8b19bef642613023ca132",
+        "9e54701031c343fbf4d2848a4de7df9252a1bac6b4e4b83e64d14ac44c070e4e",
+      ]
+      .iter()
+      .map(|h| hex::decode(h).unwrap())
+      .collect()
+    )
+    .verify(
+      &hex::decode("1eb2fbe0d23ed86d1ad0da939771e8320da2c7de2c341960fe854a7f1ee317c4").unwrap(),
+      &hex::decode("493c543220bceffa21283b176955173baa7745d563a7b5e2cae0b4253419a87f").unwrap(),
+    ))
   }
 }

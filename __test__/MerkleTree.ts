@@ -152,7 +152,7 @@ export abstract class MerkleTreeNew<K, V> {
 
     protected constructor(protected readonly treeType: [string, string]) { }
 
-    protected tree: MerkleTree = new MerkleTree()
+    protected tree: MerkleTree | undefined
 
     public toBytes(value: any): Uint8Array {
         const data = defaultAbiCoder.encode(this.treeType, value)
@@ -161,12 +161,11 @@ export abstract class MerkleTreeNew<K, V> {
     }
 
     public getIndex(data: any): number {
-        const hash = MerkleTree.hash(this.toBytes(data))
-        return Number(this.tree.getLeafIndex(hash))
+        return Number(this.tree!.getIndexData(this.toBytes(data)))
     }
 
     public getProofHashes(data: any): Array<string> {
-        return this.tree.proof(new Uint32Array([this.getIndex(data)])).proofHashesHex()
+        return this.tree!.getProof(this.tree!.getIndexData(this.toBytes(data))).proofHashesHex()
     }
 
     get root(): string {
@@ -183,7 +182,7 @@ export abstract class MerkleTreeNew<K, V> {
         value: Buffer[] | Uint8Array[],
         proof: string[],
     ): boolean {
-        return MerkleProof.verifyOrdered(toBytes(root), this.toBytes(value), proof.map(p => toBytes(p)))
+        return new MerkleProof(proof.map(p => toBytes(p))).verify(toBytes(root), this.toBytes(value))
     }
 
     public size(): number {
@@ -217,8 +216,7 @@ export abstract class MerkleTreeNew<K, V> {
 
 
         const values = this.getValues();
-        this.tree.append(values.map(l => this.toBytes(l)))
-        this.tree.generateTree()
+        this.tree = new MerkleTree(values.map(l => this.toBytes(l)))
 
         this.valueChanged = false;
     }
