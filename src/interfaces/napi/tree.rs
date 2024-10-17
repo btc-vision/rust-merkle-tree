@@ -22,7 +22,7 @@ impl MerkleTreeJs {
 
     MerkleTreeSha256::from_leaves_data(
       leaves.iter().map(|l| l.to_vec()).collect(),
-      options.sort_leaves.clone(),
+      options.sort_leaves,
     )
     .map(|t| MerkleTreeJs { inner: t })
     .map_err(|err| napi::Error::from_reason(err.to_string()))
@@ -59,7 +59,7 @@ impl MerkleTreeJs {
     self
       .inner
       .get_proof(leaf_index as usize)
-      .map(|proof| MerkleProofJs::new_inner(proof))
+      .map(MerkleProofJs::new_inner)
       .map_err(|err| napi::Error::from_reason(err.to_string()))
   }
 

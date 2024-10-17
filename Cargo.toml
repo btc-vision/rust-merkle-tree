@@ -11,15 +11,11 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "2.16.11", default-features = false, features = ["napi8", "tokio_rt"] }
 napi-derive = "2.16.12"
-tokio = "1.40.0"
 anyhow = "1.0.89"
-bytemuck = "1.18.0"
-futures = "0.3.30"
 hex = "0.4.3"
-bytes = "1.7.2"
-rs_merkle = "1.4.2"
 sha2 = { version = "0.10", default-features = false }
 itertools = "0.13.0"
+
 
 [build-dependencies]
 napi-build = "2.1.3"

@@ -5,7 +5,6 @@ extern crate napi_derive;
 
 use std::panic;
 
-use itertools::Itertools;
 
 mod application;
 mod domain;

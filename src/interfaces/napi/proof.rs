@@ -12,12 +12,7 @@ impl MerkleProofJs {
   #[napi(constructor, catch_unwind)]
   pub fn new_from_hashes(proof_hashes: Vec<Uint8Array>) -> Self {
     MerkleProofJs {
-      inner: MerkleProofInner::new_from_proof(
-        proof_hashes
-          .iter()
-          .map(|p| p.to_vec().try_into().unwrap())
-          .collect(),
-      ),
+      inner: MerkleProofInner::new_from_proof(proof_hashes.iter().map(|p| p.to_vec()).collect()),
     }
   }
 

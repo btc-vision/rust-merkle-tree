@@ -1,9 +1,8 @@
 import { StandardMerkleTree } from '@btc-vision/merkle-tree'
 import { MerkleTree, MerkleProof } from '..'
 import { defaultAbiCoder } from '@ethersproject/abi'
-import { arrayify as toBytes, hexlify as toHex, concat } from '@ethersproject/bytes'
+import { arrayify as toBytes } from '@ethersproject/bytes'
 import test from 'ava'
-import { assert } from 'console'
 
 function objToBytes(value: any): Uint8Array {
     const data = defaultAbiCoder.encode(['string'], value)

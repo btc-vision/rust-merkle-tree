@@ -1,9 +1,6 @@
-use std::{
-  collections::{hash_map, HashMap},
-  ops::Deref,
-};
+use std::collections::HashMap;
 
-use itertools::{sorted, Itertools};
+use itertools::Itertools;
 use sha2::{digest::FixedOutput, Digest, Sha256};
 
 pub trait MerkleTreeTrait {
@@ -25,7 +22,7 @@ pub trait MerkleTreeTrait {
   fn sibling_index(i: usize) -> anyhow::Result<usize> {
     let i = i as i32;
     if i > 0 {
-      Ok((i - ((-1 as i32).pow((i % 2) as u32))) as usize)
+      Ok((i - ((-1_i32).pow((i % 2) as u32))) as usize)
     } else {
       Err(anyhow::anyhow!("Root has no siblings"))
     }
@@ -83,10 +80,9 @@ impl MerkleTreeSha256 {
         .enumerate()
         .sorted_by(|(_, u1), (_, u2)| u1.cmp(u2))
         .enumerate()
-        .map(|d| d)
         .collect()
     } else {
-      leaves.iter().enumerate().enumerate().map(|d| d).collect()
+      leaves.iter().enumerate().enumerate().collect()
     };
 
     for &(d1, (d2, hash)) in leaves_iterator.iter() {
@@ -113,7 +109,7 @@ impl MerkleTreeSha256 {
       leaves,
       tree_map,
       hash_map,
-      root: tree.get(0).cloned(),
+      root: tree.first().cloned(),
       tree,
     })
   }
@@ -123,11 +119,11 @@ impl MerkleTreeSha256 {
   }
 
   pub fn get_index_by_data(&self, data: &[u8]) -> anyhow::Result<usize> {
-    return self.get_index_by_hash(&Self::hash_leaf(data));
+    self.get_index_by_hash(&Self::hash_leaf(data))
   }
 
   pub fn get_index_by_hash(&self, hash: &[u8]) -> anyhow::Result<usize> {
-    Ok(self.hash_map.get(hash).expect("hash did not found").clone())
+    Ok(*self.hash_map.get(hash).expect("hash did not found"))
   }
 
   pub fn get_root(&self) -> anyhow::Result<Vec<u8>> {
@@ -135,11 +131,10 @@ impl MerkleTreeSha256 {
   }
 
   pub fn get_proof(&self, index: usize) -> anyhow::Result<super::proof::MerkleProofInner<Self>> {
-    let mut tree_index = self
+    let mut tree_index = *self
       .tree_map
       .get(index)
-      .expect("Index does not exists")
-      .clone();
+      .expect("Index does not exists");
 
     let mut proof_hashes = Vec::new();
     while tree_index > 0 {
@@ -153,11 +148,10 @@ impl MerkleTreeSha256 {
       self
         .tree
         .get(
-          self
+          *self
             .tree_map
             .get(index)
-            .expect("Hash does not exist")
-            .clone(),
+            .expect("Hash does not exist"),
         )
         .expect("Hash does not exist in tree"),
     ) {
