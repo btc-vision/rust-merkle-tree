@@ -21,8 +21,8 @@ jobs:
             matrix:
                 settings:
                     - host: windows-latest
-                      build: yarn build --target x86_64-windows
-                      target: x86_64-windows
+                      build: yarn build --target x86_64-pc-windows-msvc
+                      target: x86_64-pc-windows-msvc
                     - host: ubuntu-latest
                       target: x86_64-linux-gnu
                       docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
@@ -52,6 +52,7 @@ jobs:
 
             - name: Install
               uses: dtolnay/rust-toolchain@stable
+              if: ${{ !matrix.settings.docker }}
               with:
                   toolchain: stable
                   targets: ${{ matrix.settings.target }}
