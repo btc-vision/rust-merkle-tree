@@ -82,7 +82,7 @@ jobs:
     #              sudo apt-get update
     #              sudo apt-get install gcc-riscv64-linux-gnu -y
     #            build: yarn build --target riscv64gc-unknown-linux-gnu
-    name: stable - ${{ matrix.settings.target }} - node@21
+    name: stable - ${{ matrix.settings.target }} - node@22
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +90,7 @@ jobs:
         uses: actions/setup-node@v4
         if: ${{ !matrix.settings.docker }}
         with:
-          node-version: 21
+          node-version: 22
           cache: npm
       - name: Install
         uses: dtolnay/rust-toolchain@stable
@@ -126,7 +126,7 @@ jobs:
         uses: actions/setup-node@v4
         if: matrix.settings.target == 'i686-pc-windows-msvc'
         with:
-          node-version: 21
+          node-version: 22
           cache: npm
           architecture: x86
       - name: Build in docker
@@ -413,7 +413,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 21
+          node-version: 22
           cache: npm
       - name: Install dependencies
         run: yarn install
@@ -454,7 +454,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 21
+          node-version: 22
           cache: npm
       - name: Install dependencies
         run: yarn install
