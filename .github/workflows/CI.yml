@@ -44,20 +44,20 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
 
-            - name: Setup node
+            - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: 22
                   cache: npm
 
-            - name: Install
+            - name: Install Rust toolchain
               uses: dtolnay/rust-toolchain@stable
               if: ${{ !matrix.settings.docker }}
               with:
                   toolchain: stable
                   targets: ${{ matrix.settings.target }}
 
-            - name: Cache cargo
+            - name: Cache Cargo
               uses: actions/cache@v4
               with:
                   path: |
@@ -71,31 +71,22 @@ jobs:
             - name: Install dependencies
               run: yarn install
 
-            - name: Add aarch64 target
-              run: rustup target add aarch64-unknown-linux-gnu
-              if: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' }}
-
-            - name: Install cross-compilation tools for aarch64
-              run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-              if: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' }}
-
-            - name: Install Zig for aarch64
+            - name: Setup for aarch64
               run: |
+                  rustup target add aarch64-unknown-linux-gnu
+                  sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
                   wget https://ziglang.org/download/0.12.0/zig-linux-aarch64-0.12.0.tar.xz
                   tar -xf zig-linux-aarch64-0.12.0.tar.xz
                   sudo mv zig-linux-aarch64-0.12.0/zig /usr/local/bin/zig
               if: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' }}
 
-            - name: Build for aarch64
+            - name: Build
               run: |
-                  export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+                  if [[ "${{ matrix.settings.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+                    export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+                  fi
                   ${{ matrix.settings.build }}
-              if: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' }}
-
-            - name: Build for other targets
-              run: ${{ matrix.settings.build }}
               shell: bash
-              if: ${{ matrix.settings.target != 'aarch64-unknown-linux-gnu' }}
 
             - name: Upload artifact
               uses: actions/upload-artifact@v4
