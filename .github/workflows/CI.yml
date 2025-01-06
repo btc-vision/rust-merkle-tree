@@ -50,10 +50,6 @@ jobs:
                   node-version: 22
                   cache: npm
 
-            - name: Add aarch64 target
-              run: rustup target add aarch64-unknown-linux-gnu
-              if: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' }}
-
             - name: Install
               uses: dtolnay/rust-toolchain@stable
               if: ${{ !matrix.settings.docker }}
