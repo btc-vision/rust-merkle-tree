@@ -1,7 +1,7 @@
 {
     "name": "@btc-vision/rust-merkle-tree",
     "description": "Merkle Tree implementation in Rust using sha256",
-    "version": "0.0.4",
+    "version": "0.0.3",
     "main": "./index.js",
     "types": "./index.d.ts",
     "type": "commonjs",
