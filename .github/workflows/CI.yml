@@ -75,6 +75,17 @@ jobs:
               run: rustup target add aarch64-unknown-linux-gnu
               if: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' }}
 
+            - name: Install cross-compilation tools
+              run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+              if: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' }}
+
+            - name: Install Zig
+              run: |
+                  wget https://ziglang.org/download/0.12.0/zig-linux-aarch64-0.12.0.tar.xz
+                  tar -xf zig-linux-aarch64-0.12.0.tar.xz
+                  sudo mv zig-linux-aarch64-0.12.0/zig /usr/local/bin/zig
+              if: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' }}
+
             - name: Build
               run: ${{ matrix.settings.build }}
               shell: bash
