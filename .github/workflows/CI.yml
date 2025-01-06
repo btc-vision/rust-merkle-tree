@@ -71,6 +71,10 @@ jobs:
             - name: Install dependencies
               run: yarn install
 
+            - name: Add aarch64 target
+              run: rustup target add aarch64-unknown-linux-gnu
+              if: ${{ matrix.settings.target == 'aarch64-unknown-linux-gnu' }}
+
             - name: Build
               run: ${{ matrix.settings.build }}
               shell: bash
