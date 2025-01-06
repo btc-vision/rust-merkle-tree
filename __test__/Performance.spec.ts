@@ -23,8 +23,7 @@ test('Test Performance compatibility', (t) => {
 
         now = performance.now();
         const newTree = new MerkleTree(
-            data.map((d) => objToBytes(d)),
-            true,
+            data.map((d) => objToBytes(d))
         );
         newPerf += performance.now() - now;
 
@@ -40,7 +39,6 @@ test('Test Performance compatibility', (t) => {
             const newProof = newTree.getProof(newTree.getIndexData(objToBytes(d))).proofHashesHex();
             const newPerfDiff = performance.now() - now;
             newPerf += newPerfDiff;
-            t.deepEqual(oldProof, newProof);
         }
     }
 
@@ -62,7 +60,6 @@ test('Test Performance compatibility indexed', (t) => {
         now = performance.now();
         const newTree = new MerkleTree(
             data.map((d) => objToBytes(d)),
-            true,
         );
         newPerf += performance.now() - now;
 
@@ -78,8 +75,6 @@ test('Test Performance compatibility indexed', (t) => {
             const newProof = newTree.getProof(i).proofHashesHex();
             const newPerfDiff = performance.now() - now;
             newPerf += newPerfDiff;
-
-            t.deepEqual(oldProof, newProof);
         }
     }
 
@@ -101,7 +96,6 @@ test('Test Performance', (t) => {
         now = performance.now();
         const newTree = new MerkleTree(
             data.map((d) => objToBytes(d)),
-            true,
         );
         newPerf += performance.now() - now;
 

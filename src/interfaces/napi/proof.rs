@@ -1,6 +1,9 @@
-use crate::domain::{proof::MerkleProofInner, tree::MerkleTreeSha256};
+use crate::domain::{
+  proof::MerkleProofInner,
+  tree::{MerkleTreeSha256, MerkleTreeTrait},
+};
 
-use napi::bindgen_prelude::Uint8Array;
+use napi::{bindgen_prelude::Uint8Array, JsNumber};
 
 #[napi(js_name = "MerkleProof")]
 pub struct MerkleProofJs {
@@ -10,9 +13,23 @@ pub struct MerkleProofJs {
 #[napi]
 impl MerkleProofJs {
   #[napi(constructor, catch_unwind)]
-  pub fn new_from_hashes(proof_hashes: Vec<Uint8Array>) -> Self {
+  pub fn new_from_pos_len(proof_hashes: Vec<Uint8Array>, pos: JsNumber, len: JsNumber) -> Self {
     MerkleProofJs {
-      inner: MerkleProofInner::new_from_proof(proof_hashes.iter().map(|p| p.to_vec()).collect()),
+      inner: MerkleProofInner::new_from_pos_len(
+        proof_hashes.iter().map(|p| p.to_vec()).collect(),
+        TryInto::<u32>::try_into(pos).unwrap() as usize,
+        TryInto::<u32>::try_into(len).unwrap() as usize,
+      ),
+    }
+  }
+
+  #[napi]
+  pub fn new_proof(proof_hashes: Vec<Uint8Array>, tree_index: JsNumber) -> Self {
+    MerkleProofJs {
+      inner: MerkleProofInner::new_from_index(
+        proof_hashes.iter().map(|p| p.to_vec()).collect(),
+        TryInto::<u32>::try_into(tree_index).unwrap() as usize,
+      ),
     }
   }
 
@@ -22,6 +39,12 @@ impl MerkleProofJs {
 
   #[napi]
   pub fn verify(&self, root: Uint8Array, hash: Uint8Array) -> bool {
+    self.inner.verify(&root, &hash)
+  }
+
+  #[napi]
+  pub fn verify_data(&self, root: Uint8Array, data: Uint8Array) -> bool {
+    let hash = MerkleTreeSha256::hash_leaf(&data);
     self.inner.verify(&root, &hash)
   }
 

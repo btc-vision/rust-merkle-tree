@@ -1,0 +1,133 @@
+1. Ensuring Proper Usage of verify() to Prevent Malicious Proof Exploitation
+
+The usage of the verify() function must be specified as proof.verify(root, MerkleTree.hash(value)) rather than proof.verify(root, hash) with an arbitrary hash. Incorrect usage of the verify() function can allow a malicious prover to truncate a valid proof and use it as evidence for a node's hash that does not belong to the leaves of the tree. The following test case demonstrates this vulnerability:
+
+#[test]
+fn test_1() {
+    let hashes = [
+        "93ca042c86dafda63e1a03b4625f614dc9364231e986d72490a480a4cc591c4a",
+        "713af6f789258961f0ed63b4073060bae6ba7e8b92bcb5383ebe18e6e76289d6",
+        "5d351e5962324a1b9920278825ca07b94d020b34941d20d5ac0f44dbbf3a5258",
+        "493c543220bceffa21283b176955173baa7745d563a7b5e2cae0b4253419a87f",
+        "39e429c0920f4089a43dbe24a7dfcfe0552bdaabfcc9356cde88f9ea18972bf4",
+        "33b544b8002201957eaa0816c4ee2bc244d4cce765e599df6f25adbb2cdb0c08",
+        "2e3580210116e2ab7c7705f8f0b6217ac7a0ac5f31de892f847171c073a7542f",
+        "016a2b39a42811f88585a5e07ee3a57283607b47816945d61354577ff8868378",
+        "c67892017db365f15687b283fea0741145e1b54a62430fd814e1755c6e25949e",
+        "af4f1bfe5c512e9265718f3fa9a028f7e70b29860c705763ecbb541f4a5877ce",
+        "a0e25bb110b98aa9c3e2be61e432cb432788d0dbe29991acd8ced7c7d9386aea",
+        "96ca5d6526e42a2a9da666e27cd8332c3a6b4cada4561726401f66ba08eaaa42",
+    ];
+    let root = "1eb2fbe0d23ed86d1ad0da939771e8320da2c7de2c341960fe854a7f1ee317c4";
+
+    let tree = MerkleTreeSha256::from_leaves_hashes(
+        hashes.iter().map(|h| hex::decode(h).unwrap()).collect(),
+        true
+    ).unwrap();
+    assert_eq!(tree.get_root().unwrap(), hex::decode(root).unwrap());
+
+    // Create a proof for one of the leaf nodes
+    let proof = MerkleProofInner::<MerkleTreeSha256>::new_from_proof(
+        [
+            "713af6f789258961f0ed63b4073060bae6ba7e8b92bcb5383ebe18e6e76289d6",
+            "9f5040eb0ee98927dcf3e7256161cad8a55f1530c6106fdc75c674c98d6cb8fe",
+            "4d42ca27311b1512c3d3cd5ac07864264b096981cbc8b19bef642613023ca132",
+            "9e54701031c343fbf4d2848a4de7df9252a1bac6b4e4b83e64d14ac44c070e4e",
+        ]
+            .iter()
+            .map(|h| hex::decode(h).unwrap())
+            .collect()
+    );
+
+    // Verify the proof with the correct leaf hash
+    assert!(proof.verify(
+        &hex::decode(root).unwrap(),
+        &hex::decode("93ca042c86dafda63e1a03b4625f614dc9364231e986d72490a480a4cc591c4a").unwrap()
+    ));
+
+    // Create a proof with a truncated set of hashes
+    let proof = MerkleProofInner::<MerkleTreeSha256>::new_from_proof(
+        [
+            "9f5040eb0ee98927dcf3e7256161cad8a55f1530c6106fdc75c674c98d6cb8fe",
+            "4d42ca27311b1512c3d3cd5ac07864264b096981cbc8b19bef642613023ca132",
+            "9e54701031c343fbf4d2848a4de7df9252a1bac6b4e4b83e64d14ac44c070e4e",
+        ]
+            .iter()
+            .map(|h| hex::decode(h).unwrap())
+            .collect()
+    );
+
+    // Verify the proof with a fake leaf hash
+    assert!(proof.verify(
+        &hex::decode(root).unwrap(),
+        &hex::decode("aae47106d882563487de43ea5c0ac5ec53a60e2d3cc9a88f93b0d33cf0c78ddc").unwrap()
+    ));
+}
+
+2. Hash Collision Risk When sort=false
+
+The hash_nodes function combines two input nodes (e.g., A and B) and sorts them before hashing to ensure deterministic results. However, sorting removes positional context, meaning the order of the child nodes (A, B) and (B, A) becomes indistinguishable after hashing. Both configurations produce the same hash, making the tree vulnerable to hash collision attacks.
+
+When the sort parameter is set to false, the tree construction retains the original input order. An attacker can rearrange the nodes in the tree and produce a valid proof, even though the structure has been altered, as the hash computation does not distinguish node positions.
+
+The following test case demonstrates this vulnerability:
+
+#[test]
+fn test_2() {
+    // Original set of hashes
+    let hashes_1 = [
+        "93ca042c86dafda63e1a03b4625f614dc9364231e986d72490a480a4cc591c4a",
+        "713af6f789258961f0ed63b4073060bae6ba7e8b92bcb5383ebe18e6e76289d6",
+        "5d351e5962324a1b9920278825ca07b94d020b34941d20d5ac0f44dbbf3a5258",
+        "493c543220bceffa21283b176955173baa7745d563a7b5e2cae0b4253419a87f",
+        "39e429c0920f4089a43dbe24a7dfcfe0552bdaabfcc9356cde88f9ea18972bf4",
+        "33b544b8002201957eaa0816c4ee2bc244d4cce765e599df6f25adbb2cdb0c08",
+        "2e3580210116e2ab7c7705f8f0b6217ac7a0ac5f31de892f847171c073a7542f",
+        "016a2b39a42811f88585a5e07ee3a57283607b47816945d61354577ff8868378",
+        "c67892017db365f15687b283fea0741145e1b54a62430fd814e1755c6e25949e",
+        "af4f1bfe5c512e9265718f3fa9a028f7e70b29860c705763ecbb541f4a5877ce",
+        "a0e25bb110b98aa9c3e2be61e432cb432788d0dbe29991acd8ced7c7d9386aea",
+        "96ca5d6526e42a2a9da666e27cd8332c3a6b4cada4561726401f66ba08eaaa42",
+    ];
+
+    // Construct a Merkle tree with unsorted input
+    let tree_1 = MerkleTreeSha256::from_leaves_hashes(
+        hashes_1.iter().map(|h| hex::decode(h).unwrap()).collect(),
+        false
+    ).unwrap();
+
+    // Rearrange nodes by swapping the first two hashes
+    let hashes_2 = [
+        "713af6f789258961f0ed63b4073060bae6ba7e8b92bcb5383ebe18e6e76289d6",
+        "93ca042c86dafda63e1a03b4625f614dc9364231e986d72490a480a4cc591c4a",
+        "5d351e5962324a1b9920278825ca07b94d020b34941d20d5ac0f44dbbf3a5258",
+        "493c543220bceffa21283b176955173baa7745d563a7b5e2cae0b4253419a87f",
+        "39e429c0920f4089a43dbe24a7dfcfe0552bdaabfcc9356cde88f9ea18972bf4",
+        "33b544b8002201957eaa0816c4ee2bc244d4cce765e599df6f25adbb2cdb0c08",
+        "2e3580210116e2ab7c7705f8f0b6217ac7a0ac5f31de892f847171c073a7542f",
+        "016a2b39a42811f88585a5e07ee3a57283607b47816945d61354577ff8868378",
+        "c67892017db365f15687b283fea0741145e1b54a62430fd814e1755c6e25949e",
+        "af4f1bfe5c512e9265718f3fa9a028f7e70b29860c705763ecbb541f4a5877ce",
+        "a0e25bb110b98aa9c3e2be61e432cb432788d0dbe29991acd8ced7c7d9386aea",
+        "96ca5d6526e42a2a9da666e27cd8332c3a6b4cada4561726401f66ba08eaaa42",
+    ];
+
+    // Construct another tree with rearranged input
+    let tree_2 = MerkleTreeSha256::from_leaves_hashes(
+        hashes_2.iter().map(|h| hex::decode(h).unwrap()).collect(),
+        false
+    ).unwrap();
+
+    // Both trees produce the same root hash despite different structures
+    assert_eq!(tree_1.get_root().unwrap(), tree_2.get_root().unwrap());
+}
+
+Mitigation: Include positional information in hashing, this ensures the hash reflects both the data and its position in the tree, making collisions due to ordering infeasible.
+
+3. Disruption of Merkle Proof Integrity Due to Leaf Sorting
+
+The MerkleTree constructor provides an optional sort parameter, which, when enabled, sorts the input leaves before building the tree. While this may be useful for certain applications, it fundamentally alters the order of leaves, directly impacting the tree structure and the resulting root hash.
+
+In the context of Merkle proofs, the integrity and validity of a proof rely on the original order of the leaves. When the leaves are sorted during tree construction, the proof semantics are broken, potentially leading to invalid or misleading proofs.
+
+Mitigation: Always maintain the original order of the leaves and document any sorting operation outside the tree construction process. Avoid sorting leaves unless required by the application.

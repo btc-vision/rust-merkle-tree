@@ -1,4 +1,4 @@
-use super::{options::MerkleTreeOptionsJs, proof::MerkleProofJs};
+use super::proof::MerkleProofJs;
 use crate::domain::tree::{MerkleTreeSha256, MerkleTreeTrait};
 use napi::bindgen_prelude::Uint8Array;
 
@@ -15,17 +15,10 @@ impl MerkleTreeJs {
   }
 
   #[napi(constructor)]
-  pub fn from_leaves(leaves: Vec<Uint8Array>, sort_leaves: Option<bool>) -> napi::Result<Self> {
-    let options = MerkleTreeOptionsJs {
-      sort_leaves: sort_leaves.unwrap_or(true),
-    };
-
-    MerkleTreeSha256::from_leaves_data(
-      leaves.iter().map(|l| l.to_vec()).collect(),
-      options.sort_leaves,
-    )
-    .map(|t| MerkleTreeJs { inner: t })
-    .map_err(|err| napi::Error::from_reason(err.to_string()))
+  pub fn from_leaves(leaves: Vec<Uint8Array>) -> napi::Result<Self> {
+    MerkleTreeSha256::from_leaves_data(leaves.iter().map(|l| l.to_vec()).collect())
+      .map(|t| MerkleTreeJs { inner: t })
+      .map_err(|err| napi::Error::from_reason(err.to_string()))
   }
 
   #[napi]
