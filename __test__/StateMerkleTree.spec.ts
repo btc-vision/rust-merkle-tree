@@ -1,14 +1,13 @@
 import test from 'ava';
 import { randomAddress } from './generator.js';
-import { StateMerkleTreeNew } from './new/StateMerkleTreeNew.js';
-import { MerkleProof } from '../index.js';
+import { StateMerkleTree } from './new/StateMerkleTreeNew.js';
 
 test('Test StateMerkleTree compatibility', (t) => {
     const address1 = randomAddress();
     const address2 = randomAddress();
     const address3 = randomAddress();
     const address4 = randomAddress();
-    const merkleNew = new StateMerkleTreeNew();
+    const merkleNew = new StateMerkleTree();
 
 
     merkleNew.updateValue(address1, 1n, 1n);
@@ -19,5 +18,5 @@ test('Test StateMerkleTree compatibility', (t) => {
 
     const proofNew = merkleNew.getProofs();
 
-    t.assert(merkleNew.root, "0x5bc77dad33e9eb98b3c1800ea129ec5e9ec20afaacbdbcf110f21cb3e15da13c")
+    t.assert(merkleNew.root, '0x5bc77dad33e9eb98b3c1800ea129ec5e9ec20afaacbdbcf110f21cb3e15da13c');
 });

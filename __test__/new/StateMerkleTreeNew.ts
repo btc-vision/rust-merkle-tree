@@ -1,29 +1,36 @@
-import { MerkleTreeNew } from './MerkleTree.js';
+import { MerkleTree, toBytes } from './MerkleTree.js';
 import {
     Address,
     AddressMap,
+    BinaryWriter,
     BufferHelper,
     MemorySlotData,
     MemorySlotPointer,
 } from '@btc-vision/transaction';
-import { defaultAbiCoder } from '@ethersproject/abi';
-import { MerkleProof, MerkleTree } from '../../index.js';
-import { toBytes } from '@btc-vision/merkle-tree/dist/bytes.js';
+import { MerkleProof, MerkleTree as MerkleTreeRust } from '../../index.js';
+import { FastBigIntMap } from './FastBigIntMap.js';
 
-export class StateMerkleTreeNew extends MerkleTreeNew<MemorySlotPointer, MemorySlotData<bigint>> {
-    public static TREE_TYPE: [string, string] = ['bytes32', 'bytes32'];
+export class StateMerkleTree extends MerkleTree<MemorySlotPointer, MemorySlotData<bigint>> {
+    public static verify(root: string, values: Buffer[] | Uint8Array[], proof: string[], size: number, pos: number): boolean {
+        const writer = new BinaryWriter(32 * values.length);
+        for (const value of values) {
+            writer.writeBytes(value);
+        }
 
-    constructor() {
-        super(StateMerkleTreeNew.TREE_TYPE);
+        const data = writer.getBuffer();
+        return new MerkleProof(proof.map((p) => toBytes(p)), pos, size).verify(
+            toBytes(root),
+            MerkleTreeRust.hash(data),
+        );
     }
 
-    public static verify(root: string, values: Buffer[] | Uint8Array[], proof: string[]): boolean {
-        const data = defaultAbiCoder.encode(StateMerkleTreeNew.TREE_TYPE, values);
+    public toBytes(values: Buffer[]): Uint8Array {
+        const writer = new BinaryWriter(32 * values.length);
+        for (const value of values) {
+            writer.writeBytes(value);
+        }
 
-        return new MerkleProof(proof.map((p) => toBytes(p))).verify(
-            toBytes(root),
-            MerkleTree.hash(toBytes(data)),
-        );
+        return writer.getBuffer();
     }
 
     public getProofs(): AddressMap<Map<MemorySlotPointer, string[]>> {
@@ -53,10 +60,7 @@ export class StateMerkleTreeNew extends MerkleTreeNew<MemorySlotPointer, MemoryS
     }
 
     /** We have to replace the value of the given address and key with the new value */
-    public updateValues(
-        address: Address,
-        val: Map<MemorySlotPointer, MemorySlotData<bigint>>,
-    ): void {
+    public updateValues(address: Address, val: FastBigIntMap): void {
         this.ensureAddress(address);
 
         const map = this.values.get(address);
@@ -215,7 +219,7 @@ export class StateMerkleTreeNew extends MerkleTreeNew<MemorySlotPointer, MemoryS
         dummyMap.set(2n, 2n);
 
         // Add dummy values for the contract
-        dummyValues.set(MerkleTreeNew.DUMMY_ADDRESS_NON_EXISTENT, dummyMap);
+        dummyValues.set(MerkleTree.DUMMY_ADDRESS_NON_EXISTENT, dummyMap);
 
         return dummyValues;
     }
