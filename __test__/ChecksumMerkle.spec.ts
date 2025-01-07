@@ -17,7 +17,7 @@ test('Test ChecksumMerkle compatibility', (t) => {
 
     const proofsNew = merkleNew.getProofs();
     try {
-        new MerkleProof(proofsNew![0][1].map((p) => toBytes(p)), 6, 0).verify(
+        new MerkleProof(proofsNew![0][1].map((p) => toBytes(p)), 0, 6).verify(
             toBytes(merkleNew.root!),
             MerkleTree.hash(ChecksumMerkle.toBytes(merkleNew.values[0]!)),
         );
@@ -26,7 +26,7 @@ test('Test ChecksumMerkle compatibility', (t) => {
     }
 
     t.true(
-        new MerkleProof(proofsNew![0][1].map((p) => toBytes(p)), 6, 0).verify(
+        new MerkleProof(proofsNew![0][1].map((p) => toBytes(p)), 0, 6).verify(
             toBytes(merkleNew.root!),
             MerkleTree.hash(ChecksumMerkle.toBytes(merkleNew.values[0]!)),
         ),

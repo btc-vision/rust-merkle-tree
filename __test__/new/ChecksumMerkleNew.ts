@@ -25,7 +25,7 @@ export class ChecksumMerkle {
     }
 
     public static verify(root: Uint8Array, values: [number, Uint8Array], proof: string[], pos: number, size: number): boolean {
-        const generatedProof = new MerkleProof(proof.map((p) => toBytes(p)), pos, size);
+        const generatedProof = new MerkleProof(proof.map((p) => toBytes(p)), size, pos);
         return generatedProof.verify(root, MerkleTree.hash(ChecksumMerkle.toBytes(values)));
     }
 
@@ -53,7 +53,7 @@ export class ChecksumMerkle {
         }
 
         const result: BlockHeaderChecksumProof = [];
-        const hashes = this.tree.hashes();
+        const hashes = this.tree.hashes().reverse();
 
         for (let i = 0; i < hashes.length; i++) {
             const hash = hashes[i];
