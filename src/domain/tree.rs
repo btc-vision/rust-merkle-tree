@@ -236,6 +236,7 @@ mod tests {
     tree
   }
 
+  // WARNING: DO NOT USE IN PRODUCTION, NON DETERMINISTIC
   fn check_proof(number: usize) {
     let hashes = (0..number)
       .map(|_| (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>())

@@ -25,15 +25,13 @@
     "devDependencies": {
         "@ava/typescript": "^5.0.0",
         "@babel/core": "^7.26.0",
-        "@babel/plugin-transform-modules-commonjs": "^7.25.9",
+        "@babel/plugin-transform-modules-commonjs": "^7.26.3",
         "@babel/preset-env": "^7.26.0",
         "@babel/preset-typescript": "^7.26.0",
         "@babel/register": "^7.25.9",
-        "@btc-vision/merkle-tree": "github:btc-vision/merkle-tree-sha256",
-        "@ethersproject/abi": "^5.7.0",
         "@napi-rs/cli": "^2.18.4",
         "@swc-node/register": "^1.10.9",
-        "@types/node": "^22.9.0",
+        "@types/node": "^22.10.5",
         "ava": "^6.2.0",
         "ts-node": "^10.9.2"
     },
@@ -52,7 +50,7 @@
         ]
     },
     "engines": {
-        "node": ">= 18"
+        "node": ">= 22"
     },
     "scripts": {
         "artifacts": "napi artifacts",
@@ -68,8 +66,8 @@
         "url": "https://github.com/btc-vision/rust-merkle-tree"
     },
     "dependencies": {
-        "@btc-vision/bitcoin": "^6.3.0",
-        "@btc-vision/transaction": "^1.0.122",
+        "@btc-vision/bitcoin": "^6.3.3",
+        "@btc-vision/transaction": "^1.2.5",
         "sha.js": "^2.4.11",
         "sha256": "^0.2.0",
         "tsx": "^4.19.2"

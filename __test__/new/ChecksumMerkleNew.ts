@@ -1,13 +1,10 @@
-import { MerkleProof, MerkleTree } from '../..';
-import { defaultAbiCoder } from '@ethersproject/abi';
-import { BufferHelper } from '@btc-vision/transaction';
+import { BinaryWriter, BufferHelper } from '@btc-vision/transaction';
 import { ZERO_HASH } from '../types/ZeroValue.js';
+import { MerkleProof, MerkleTree } from '../../index.js';
+import { toBytes } from './MerkleTree.js';
 import { BlockHeaderChecksumProof } from '../types/IBlockHeaderDocument.js';
-import { arrayify as toBytes } from '@ethersproject/bytes';
 
-export class ChecksumMerkleNew {
-    public static TREE_TYPE: [string, string] = ['uint8', 'bytes32'];
-
+export class ChecksumMerkle {
     public tree: MerkleTree | undefined;
     public values: [number, Uint8Array][] = [];
 
@@ -19,14 +16,17 @@ export class ChecksumMerkleNew {
         return this.tree.rootHex();
     }
 
-    public static toBytes(value: unknown[]): Uint8Array {
-        const data = defaultAbiCoder.encode(ChecksumMerkleNew.TREE_TYPE, value);
-        return toBytes(data);
+    public static toBytes(value: [number, Uint8Array]): Uint8Array {
+        const writer = new BinaryWriter(1 + value[1].length);
+        writer.writeU8(value[0]);
+        writer.writeBytes(value[1]);
+
+        return writer.getBuffer();
     }
 
-    public static verify(root: Uint8Array, values: [number, Uint8Array], proof: string[], size: number, pos: number): boolean {
-        const generatedProof = new MerkleProof(proof.map((p) => toBytes(p)), size, pos);
-        return generatedProof.verify(root, MerkleTree.hash(ChecksumMerkleNew.toBytes(values)));
+    public static verify(root: Uint8Array, values: [number, Uint8Array], proof: string[], pos: number, size: number): boolean {
+        const generatedProof = new MerkleProof(proof.map((p) => toBytes(p)), pos, size);
+        return generatedProof.verify(root, MerkleTree.hash(ChecksumMerkle.toBytes(values)));
     }
 
     public setBlockData(
@@ -53,13 +53,13 @@ export class ChecksumMerkleNew {
         }
 
         const result: BlockHeaderChecksumProof = [];
+        const hashes = this.tree.hashes();
 
-        for (let i = 0; i < this.values.length; i++) {
-            const hash = MerkleTree.hash(ChecksumMerkleNew.toBytes(this.values[i]))
-            const index = this.tree.getIndexHash(hash)
+        for (let i = 0; i < hashes.length; i++) {
+            const hash = hashes[i];
             result.push([
-                index,
-                this.tree.getProof(index).proofHashesHex(),
+                Number(i),
+                this.tree.getProof(this.tree.getIndexHash(hash)).proofHashesHex(),
             ]);
         }
 
@@ -68,7 +68,7 @@ export class ChecksumMerkleNew {
 
     private generateTree(): void {
         this.tree = new MerkleTree(
-            this.values.map((v) => ChecksumMerkleNew.toBytes(v))
+            this.values.map((v) => ChecksumMerkle.toBytes(v)),
         );
     }
 }

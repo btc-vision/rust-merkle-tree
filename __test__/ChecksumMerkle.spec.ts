@@ -1,11 +1,11 @@
 import test from 'ava';
 
 import { MerkleProof, MerkleTree } from '..';
-import { arrayify as toBytes } from '@ethersproject/bytes';
-import { ChecksumMerkleNew } from './new/ChecksumMerkleNew';
+import { ChecksumMerkle } from './new/ChecksumMerkleNew';
+import { toBytes } from './new/MerkleTree.js';
 
 test('Test ChecksumMerkle compatibility', (t) => {
-    const merkleNew = new ChecksumMerkleNew();
+    const merkleNew = new ChecksumMerkle();
     merkleNew.setBlockData(
         '0x000000000000000000003b485da71d761e3946459e33301e9227005014d32fe3',
         '0x6a1a20cf378c68b915be2d0f9a898f7006d874ce8ccf2a1d061ba688b3b8e8d1',
@@ -14,14 +14,21 @@ test('Test ChecksumMerkle compatibility', (t) => {
         '0x0000000000000000000151f64e37678510ad013b25e6f4198c8fcb139079ca8c',
         '0x00000000000000000002e7eb918cbc3b0c30e7c924194d593d99949c334f89ea',
     );
+
     const proofsNew = merkleNew.getProofs();
+    try {
+        new MerkleProof(proofsNew![0][1].map((p) => toBytes(p)), 6, 0).verify(
+            toBytes(merkleNew.root!),
+            MerkleTree.hash(ChecksumMerkle.toBytes(merkleNew.values[0]!)),
+        );
+    } catch (e) {
+        console.log('err', e);
+    }
 
     t.true(
-        new MerkleProof(proofsNew![0][1].map((p) => toBytes(p)), 0, 6).verify(
+        new MerkleProof(proofsNew![0][1].map((p) => toBytes(p)), 6, 0).verify(
             toBytes(merkleNew.root!),
-            MerkleTree.hash(ChecksumMerkleNew.toBytes(merkleNew.values[0]!)),
+            MerkleTree.hash(ChecksumMerkle.toBytes(merkleNew.values[0]!)),
         ),
     );
-
-
 });
