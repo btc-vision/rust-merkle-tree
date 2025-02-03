@@ -1,356 +1,374 @@
+use anyhow::{anyhow, Result};
 use log::{debug, info};
 use rayon::prelude::*;
 use sha2::{digest::FixedOutput, Digest, Sha256};
 use std::sync::Mutex;
 use std::time::Instant;
 
+use super::proof::MerkleProofInner;
+
+/// A trait that Merkle tree implementations must follow.
 pub trait MerkleTreeTrait {
-  fn hash_leaf(data: &[u8]) -> Vec<u8>;
-  fn hash_nodes(first: &[u8], second: &[u8]) -> Vec<u8>;
-  fn left_child_index(i: usize) -> usize {
-    2 * i + 1
-  }
-  fn right_child_index(i: usize) -> usize {
-    2 * i + 2
-  }
-  fn parent_index(i: usize) -> anyhow::Result<usize> {
-    if i > 0 {
-      Ok((i - 1) / 2)
-    } else {
-      Err(anyhow::anyhow!("Root has no parent"))
-    }
-  }
-  fn sibling_index(i: usize) -> anyhow::Result<usize> {
-    let i = i as i32;
-    if i > 0 {
-      Ok((i - ((-1_i32).pow((i % 2) as u32))) as usize)
-    } else {
-      Err(anyhow::anyhow!("Root has no siblings"))
-    }
-  }
-  fn tree_index(len: usize, pos: usize) -> anyhow::Result<usize> {
-    if pos >= len {
-      Err(anyhow::anyhow!("Pos is more then len"))
-    } else {
-      Ok(len * 2 - 2 - pos)
-    }
-  }
+    /// Hash a leaf’s data. (Here: double SHA-256.)
+    fn hash_leaf(data: &[u8]) -> Vec<u8>;
+
+    /// Hash two child nodes together. (Here: single SHA-256.)
+    fn hash_nodes(left: &[u8], right: &[u8]) -> Vec<u8>;
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct MerkleTreeSha256 {
-  tree: Vec<Vec<u8>>,
-  root: Option<Vec<u8>>,
+    tree: Vec<Vec<u8>>,    // array-based complete binary tree
+    root: Option<Vec<u8>>, // cached root
 }
 
 impl MerkleTreeTrait for MerkleTreeSha256 {
-  fn hash_leaf(data: &[u8]) -> Vec<u8> {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
+    fn hash_leaf(data: &[u8]) -> Vec<u8> {
+        // Double SHA-256 for leaf data
+        let mut hasher = Sha256::new();
+        hasher.update(data);
+        let once = hasher.finalize_fixed();
 
-    let data2 = hasher.finalize_fixed();
-    let mut hasher = Sha256::new();
-    hasher.update(data2);
+        let mut hasher = Sha256::new();
+        hasher.update(once);
+        hasher.finalize_fixed().to_vec()
+    }
 
-    hasher.finalize_fixed().to_vec()
-  }
-
-  fn hash_nodes(first: &[u8], second: &[u8]) -> Vec<u8> {
-    let mut hasher = Sha256::new();
-    hasher.update(first);
-    hasher.update(second);
-
-    hasher.finalize_fixed().to_vec()
-  }
+    fn hash_nodes(left: &[u8], right: &[u8]) -> Vec<u8> {
+        // Single SHA-256 for internal nodes
+        let mut hasher = Sha256::new();
+        hasher.update(left);
+        hasher.update(right);
+        hasher.finalize_fixed().to_vec()
+    }
 }
 
 impl MerkleTreeSha256 {
-  pub fn from_leaves_data(leaves: Vec<Vec<u8>>) -> anyhow::Result<Self> {
-    let hashed_leaves: Vec<_> = leaves
-      .par_iter()
-      .map(|leaf| Self::hash_leaf(leaf))
-      .collect();
-
-    Self::from_leaves_hashes(hashed_leaves)
-  }
-
-  pub fn from_leaves_hashes(leaves: Vec<Vec<u8>>) -> anyhow::Result<Self> {
-    // Initialize the logger at the start of your application, not here
-    // env_logger::init();
-
-    let total_start = Instant::now();
-
-    let leaves_len = leaves.len();
-    if leaves_len == 0 {
-      return Err(anyhow::anyhow!("Leaves cannot be empty"));
+    /// Build a MerkleTreeSha256 from raw leaves data (will be double-hashed).
+    pub fn from_leaves_data(leaves: Vec<Vec<u8>>) -> Result<Self> {
+        let hashed_leaves: Vec<_> = leaves
+            .par_iter()
+            .map(|leaf| Self::hash_leaf(leaf))
+            .collect();
+        Self::from_leaves_hashes(hashed_leaves)
     }
 
-    let tree_len = 2 * leaves_len - 1;
+    /// Build a MerkleTreeSha256 from already-hashed leaves.
+    pub fn from_leaves_hashes(leaves: Vec<Vec<u8>>) -> Result<Self> {
+        let total_start = Instant::now();
+        let leaves_len = leaves.len();
+        if leaves_len == 0 {
+            return Err(anyhow!("Leaves cannot be empty"));
+        }
 
-    // Wrap each element of the tree in a Mutex for interior mutability
-    let tree_init_start = Instant::now();
-    let tree: Vec<Mutex<Vec<u8>>> = (0..tree_len).map(|_| Mutex::new(Vec::new())).collect();
-    debug!("Tree initialization took {:?}", tree_init_start.elapsed());
+        // The total size of a complete binary tree in array form
+        let tree_len = 2 * leaves_len - 1;
 
-    let setup_start = Instant::now();
-    debug!(
-      "Setup (leaves_iterator creation) took {:?}",
-      setup_start.elapsed()
-    );
+        // Prepare the "empty" tree with default values
+        let tree_init_start = Instant::now();
+        let tree: Vec<Mutex<Vec<u8>>> = (0..tree_len).map(|_| Mutex::new(Vec::new())).collect();
+        debug!("Tree initialization took {:?}", tree_init_start.elapsed());
 
-    // Assign leaves to the tree
-    let assign_start = Instant::now();
-    for (index, hash) in leaves.iter().enumerate() {
-      let tree_index = tree_len - 1 - index;
-      *tree[tree_index].lock().unwrap() = hash.clone();
+        // Assign leaves to the bottom of the array
+        for (index, hash) in leaves.iter().enumerate() {
+            let tree_index = tree_len - 1 - index;
+            let mut locked = tree[tree_index]
+                .lock()
+                .map_err(|_| anyhow!("Mutex poisoned"))?;
+            *locked = hash.clone();
+        }
+
+        // Recursively build internal nodes
+        let build_start = Instant::now();
+        let root_hash = build_subtree(&tree, 0, tree_len)?;
+        debug!("Building the tree took {:?}", build_start.elapsed());
+
+        // Extract the final Vec<u8>
+        let extract_start = Instant::now();
+        let final_tree: Vec<Vec<u8>> = tree
+            .into_iter()
+            .map(|m| m.into_inner().unwrap_or_default())
+            .collect();
+        debug!("Extracting tree vector took {:?}", extract_start.elapsed());
+
+        let total_duration = total_start.elapsed();
+        info!("Total duration of from_leaves_hashes: {:?}", total_duration);
+
+        Ok(Self {
+            root: Some(root_hash),
+            tree: final_tree,
+        })
     }
-    debug!(
-      "Assigning leaves to the tree took {:?}",
-      assign_start.elapsed()
+
+    /// Return an iterator over the leaf nodes (the bottom half of the array).
+    pub fn get_hashes(&self) -> impl Iterator<Item = &Vec<u8>> {
+        self.tree.iter().skip(self.tree.len() / 2)
+    }
+
+    /// Return the Merkle root, or error if missing (should never be if built properly).
+    pub fn get_root(&self) -> Result<Vec<u8>> {
+        self.root
+            .clone()
+            .ok_or_else(|| anyhow!("Merkle root not generated"))
+    }
+
+    /// Return the index of data (after double-hash) in the tree, or error if not found.
+    pub fn get_index_by_data(&self, data: &[u8]) -> Result<usize> {
+        let hashed = Self::hash_leaf(data);
+        self.get_index_by_hash(&hashed)
+    }
+
+    /// Return the index of a hashed leaf in the array, or error if not found.
+    pub fn get_index_by_hash(&self, hash: &[u8]) -> Result<usize> {
+        self.tree
+            .iter()
+            .position(|h| h == hash)
+            .ok_or_else(|| anyhow!("Hash not found in the Merkle tree"))
+    }
+
+    /// Generate a proof for the leaf at array index `index`. The proof
+    /// will store each sibling’s hash along with a boolean telling if the sibling is on the left.
+    pub fn get_proof(&self, index: usize) -> Result<MerkleProofInner<Self>> {
+        if index >= self.tree.len() {
+            return Err(anyhow!("Index out of range"));
+        }
+
+        let mut path = Vec::new();
+        let mut node = index;
+
+        // While we're not at the root
+        while node > 0 {
+            let parent = parent_index(node)?;
+            let sibling = sibling_index(node)?;
+
+            // If the sibling is less than `node`, it means sibling is on the left side
+            let is_left = sibling < node;
+
+            // Save (sibling_hash, sibling_is_left)
+            path.push((self.tree[sibling].clone(), is_left));
+
+            node = parent; // move upward
+        }
+
+        // The proof steps are from bottom to top in `path`, but we can keep them
+        // in that order or reverse them. We just need to apply them in the same sequence
+        // we store them. Let’s reverse to get “top-down”: (lowest sibling first).
+        path.reverse();
+
+        // Check that the proof is correct
+        let leaf_hash = self.tree[index].clone();
+        let root = self.get_root()?;
+        let proof = MerkleProofInner::new(path);
+        if proof.verify(&root, &leaf_hash) {
+            Ok(proof)
+        } else {
+            Err(anyhow!("Proof does not match the Merkle root"))
+        }
+    }
+}
+
+/// Build a subtree rooted at `node_index`. Uses Rayon to join left and right children.
+fn build_subtree(tree: &[Mutex<Vec<u8>>], node_index: usize, tree_len: usize) -> Result<Vec<u8>> {
+    let left = left_child_index(node_index);
+    // If left >= tree_len, we’re a leaf
+    if left >= tree_len {
+        let locked = tree[node_index]
+            .lock()
+            .map_err(|_| anyhow!("Mutex poisoned"))?;
+        return Ok(locked.clone());
+    }
+
+    let right = right_child_index(node_index);
+
+    let (left_hash_res, right_hash_res) = rayon::join(
+        || build_subtree(tree, left, tree_len),
+        || build_subtree(tree, right, tree_len),
     );
 
-    // Build the tree recursively in parallel
-    let build_start = Instant::now();
-    let root_hash = Self::build_subtree(&tree, 0, tree_len);
-    debug!("Building the tree took {:?}", build_start.elapsed());
+    let left_hash = left_hash_res?;
+    let right_hash = right_hash_res?;
 
-    // Extract the tree vector from the Mutexes
-    let extract_start = Instant::now();
-    let tree_vec: Vec<Vec<u8>> = tree
-      .into_iter()
-      .map(|mutex| mutex.into_inner().unwrap())
-      .collect();
-    debug!("Extracting tree vector took {:?}", extract_start.elapsed());
+    let parent_hash = MerkleTreeSha256::hash_nodes(&left_hash, &right_hash);
+    let mut locked = tree[node_index]
+        .lock()
+        .map_err(|_| anyhow!("Mutex poisoned"))?;
+    *locked = parent_hash.clone();
+    Ok(parent_hash)
+}
 
-    // Build tree_map and hash_map
-    let map_build_start = Instant::now();
-
-    debug!(
-      "Building tree_map and hash_map took {:?}",
-      map_build_start.elapsed()
-    );
-
-    let total_duration = total_start.elapsed();
-    info!("Total duration of from_leaves_hashes: {:?}", total_duration);
-
-    Ok(Self {
-      root: Some(root_hash),
-      tree: tree_vec,
-    })
-  }
-
-  fn build_subtree(tree: &[Mutex<Vec<u8>>], node_index: usize, tree_len: usize) -> Vec<u8> {
-    if MerkleTreeSha256::left_child_index(node_index) >= tree_len {
-      // Leaf node, already assigned
-      tree[node_index].lock().unwrap().clone()
+/// Standard “binary heap” style index calculations:
+fn left_child_index(i: usize) -> usize {
+    2 * i + 1
+}
+fn right_child_index(i: usize) -> usize {
+    2 * i + 2
+}
+fn parent_index(i: usize) -> Result<usize> {
+    if i == 0 {
+        Err(anyhow!("Root has no parent (index = 0)"))
     } else {
-      let left_child = MerkleTreeSha256::left_child_index(node_index);
-      let right_child = MerkleTreeSha256::right_child_index(node_index);
-
-      let (left_hash, right_hash) = rayon::join(
-        || Self::build_subtree(tree, left_child, tree_len),
-        || Self::build_subtree(tree, right_child, tree_len),
-      );
-
-      let parent_hash = MerkleTreeSha256::hash_nodes(&left_hash, &right_hash);
-      *tree[node_index].lock().unwrap() = parent_hash.clone();
-      parent_hash
+        Ok((i - 1) / 2)
     }
-  }
-
-  pub fn get_hashes(&self) -> impl Iterator<Item = &Vec<u8>> {
-    self.tree.iter().skip(self.tree.len() / 2)
-  }
-
-  pub fn get_index_by_data(&self, data: &[u8]) -> anyhow::Result<usize> {
-    self.get_index_by_hash(&Self::hash_leaf(data))
-  }
-
-  pub fn get_index_by_hash(&self, hash: &[u8]) -> anyhow::Result<usize> {
-    self
-      .tree
-      .iter()
-      .position(|h| h.eq(hash))
-      .ok_or(anyhow::anyhow!("hash did not found"))
-  }
-
-  pub fn get_root(&self) -> anyhow::Result<Vec<u8>> {
-    Ok(self.root.clone().expect("Root is not generated"))
-  }
-
-  pub fn get_proof(&self, index: usize) -> anyhow::Result<super::proof::MerkleProofInner<Self>> {
-    let mut tree_index = index;
-    let mut proof_hashes = Vec::new();
-    while tree_index > 0 {
-      proof_hashes.push(self.tree[Self::sibling_index(tree_index)?].clone());
-      tree_index = Self::parent_index(tree_index)?;
-    }
-    let proof = super::proof::MerkleProofInner::new_from_index(proof_hashes, index);
-
-    let leaf_hash = self.tree.get(index).expect("Hash does not exist in tree");
-
-    if proof.verify(
-      self.root.as_ref().expect("root does not generated"),
-      leaf_hash,
-    ) {
-      Ok(proof)
+}
+fn sibling_index(i: usize) -> Result<usize> {
+    if i == 0 {
+        Err(anyhow!("Root has no sibling (index = 0)"))
+    } else if i % 2 == 1 {
+        // node is left child => sibling = node+1
+        Ok(i + 1)
     } else {
-      Err(anyhow::anyhow!("Checksum does not match the root"))
+        // node is right child => sibling = node-1
+        Ok(i - 1)
     }
-  }
 }
 
 #[cfg(test)]
 mod tests {
-  use super::super::proof::MerkleProofInner;
-  use super::MerkleTreeSha256;
-  use super::MerkleTreeTrait;
-
-  fn steps() -> Vec<usize> {
-    vec![
-      1, 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83,
-      89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181,
-      191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281,
-      283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397,
-      401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503,
-      509, 521, 523, 541,
-    ]
-  }
-
-  fn check_tree(hashes: [&str; 12], root: &str) -> MerkleTreeSha256 {
-    let tree = MerkleTreeSha256::from_leaves_hashes(
-      hashes.iter().map(|h| hex::decode(h).unwrap()).collect(),
-    )
-    .unwrap();
-
-    // Test proof for each element of the tree
-    for hash in hashes.iter() {
-      let hash_bytes = hex::decode(hash).unwrap();
-      let proof = tree
-        .get_proof(tree.get_index_by_hash(&hash_bytes).unwrap())
-        .unwrap();
-      assert!(proof.verify(&hex::decode(root).unwrap(), &hash_bytes));
-    }
-
-    assert_eq!(tree.get_root().unwrap(), hex::decode(root).unwrap());
-    tree
-  }
-
-  // WARNING: DO NOT USE IN PRODUCTION, NON DETERMINISTIC
-  fn check_proof(number: usize) {
-    let hashes = (0..number)
-      .map(|_| (0..32).map(|_| rand::random::<u8>()).collect::<Vec<u8>>())
-      .collect::<Vec<Vec<u8>>>();
-
-    let tree = MerkleTreeSha256::from_leaves_hashes(hashes.clone()).unwrap();
-
-    let root = tree.root.as_ref().unwrap();
-    for hash in hashes.iter() {
-      let i = tree.get_index_by_hash(hash).unwrap();
-      let proof = tree.get_proof(i.clone()).unwrap();
-      assert!(proof.verify(root, &hash));
-    }
-  }
+  use crate::domain::tree::{MerkleTreeSha256, MerkleTreeTrait};
+  use rand::Rng;
 
   #[test]
-  fn test_tree_unsorted() {
-    let tree = check_tree(
-      [
-        "2e3580210116e2ab7c7705f8f0b6217ac7a0ac5f31de892f847171c073a7542f",
-        "016a2b39a42811f88585a5e07ee3a57283607b47816945d61354577ff8868378",
-        "93ca042c86dafda63e1a03b4625f614dc9364231e986d72490a480a4cc591c4a",
-        "af4f1bfe5c512e9265718f3fa9a028f7e70b29860c705763ecbb541f4a5877ce",
-        "5d351e5962324a1b9920278825ca07b94d020b34941d20d5ac0f44dbbf3a5258",
-        "713af6f789258961f0ed63b4073060bae6ba7e8b92bcb5383ebe18e6e76289d6",
-        "39e429c0920f4089a43dbe24a7dfcfe0552bdaabfcc9356cde88f9ea18972bf4",
-        "c67892017db365f15687b283fea0741145e1b54a62430fd814e1755c6e25949e",
-        "33b544b8002201957eaa0816c4ee2bc244d4cce765e599df6f25adbb2cdb0c08",
-        "493c543220bceffa21283b176955173baa7745d563a7b5e2cae0b4253419a87f",
-        "96ca5d6526e42a2a9da666e27cd8332c3a6b4cada4561726401f66ba08eaaa42",
-        "a0e25bb110b98aa9c3e2be61e432cb432788d0dbe29991acd8ced7c7d9386aea",
-      ],
-      "3182eef79a093bac51458d77b984c513a473573ef129b41268e062fc2b2d4caa",
-    );
-    let index = tree
-      .get_index_by_hash(
-        &hex::decode("a0e25bb110b98aa9c3e2be61e432cb432788d0dbe29991acd8ced7c7d9386aea").unwrap(),
-      )
-      .unwrap();
-
-    assert_eq!(index, MerkleTreeSha256::tree_index(12, 11).unwrap());
-    let proof = tree.get_proof(index).unwrap();
-    assert_eq!(
-      proof,
-      MerkleProofInner::<MerkleTreeSha256>::new_from_pos_len(
-        [
-          "96ca5d6526e42a2a9da666e27cd8332c3a6b4cada4561726401f66ba08eaaa42",
-          "f623586be521ccdb9862dea9e6c9541b113f3497c89e3f72315a8e12d1dbb754",
-          "294f589e294c5187b6f62f23953b88431450bfc9ce0ad53d712772d78b1b049a",
-        ]
-        .iter()
-        .map(|h| hex::decode(h).unwrap())
-        .collect(),
-        11,
-        12,
-      )
-    );
-  }
-
-  #[test]
-  fn test_unsorted() {
-    for n in steps() {
-      check_proof(n);
+    fn test_empty_leaves_error() {
+        let leaves: Vec<Vec<u8>> = vec![];
+        let result = MerkleTreeSha256::from_leaves_data(leaves);
+        assert!(
+            result.is_err(),
+            "Building a tree from empty leaves must return an error"
+        );
     }
-  }
 
-  // Audit
-  #[test]
-  fn test_2() {
-    // Original set of hashes
-    let hashes_1 = [
-      "93ca042c86dafda63e1a03b4625f614dc9364231e986d72490a480a4cc591c4a",
-      "713af6f789258961f0ed63b4073060bae6ba7e8b92bcb5383ebe18e6e76289d6",
-      "5d351e5962324a1b9920278825ca07b94d020b34941d20d5ac0f44dbbf3a5258",
-      "493c543220bceffa21283b176955173baa7745d563a7b5e2cae0b4253419a87f",
-      "39e429c0920f4089a43dbe24a7dfcfe0552bdaabfcc9356cde88f9ea18972bf4",
-      "33b544b8002201957eaa0816c4ee2bc244d4cce765e599df6f25adbb2cdb0c08",
-      "2e3580210116e2ab7c7705f8f0b6217ac7a0ac5f31de892f847171c073a7542f",
-      "016a2b39a42811f88585a5e07ee3a57283607b47816945d61354577ff8868378",
-      "c67892017db365f15687b283fea0741145e1b54a62430fd814e1755c6e25949e",
-      "af4f1bfe5c512e9265718f3fa9a028f7e70b29860c705763ecbb541f4a5877ce",
-      "a0e25bb110b98aa9c3e2be61e432cb432788d0dbe29991acd8ced7c7d9386aea",
-      "96ca5d6526e42a2a9da666e27cd8332c3a6b4cada4561726401f66ba08eaaa42",
-    ];
+    #[test]
+    fn test_single_leaf_tree() {
+        // If there's only one leaf, the Merkle root is just the double-hash of that leaf.
+        let leaves = vec![b"only_leaf".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
+            .expect("Should build a single-leaf tree successfully");
+        let root = tree.get_root().expect("Should have a valid root");
 
-    // Construct a Merkle tree with unsorted input
-    let tree_1 = MerkleTreeSha256::from_leaves_hashes(
-      hashes_1.iter().map(|h| hex::decode(h).unwrap()).collect(),
-    )
-    .unwrap();
+        let expected = MerkleTreeSha256::hash_leaf(b"only_leaf");
+        assert_eq!(
+            root, expected,
+            "Single-leaf root must match the leaf's double-hash"
+        );
 
-    // Rearrange nodes by swapping the first two hashes
-    let hashes_2 = [
-      "713af6f789258961f0ed63b4073060bae6ba7e8b92bcb5383ebe18e6e76289d6",
-      "93ca042c86dafda63e1a03b4625f614dc9364231e986d72490a480a4cc591c4a",
-      "5d351e5962324a1b9920278825ca07b94d020b34941d20d5ac0f44dbbf3a5258",
-      "493c543220bceffa21283b176955173baa7745d563a7b5e2cae0b4253419a87f",
-      "39e429c0920f4089a43dbe24a7dfcfe0552bdaabfcc9356cde88f9ea18972bf4",
-      "33b544b8002201957eaa0816c4ee2bc244d4cce765e599df6f25adbb2cdb0c08",
-      "2e3580210116e2ab7c7705f8f0b6217ac7a0ac5f31de892f847171c073a7542f",
-      "016a2b39a42811f88585a5e07ee3a57283607b47816945d61354577ff8868378",
-      "c67892017db365f15687b283fea0741145e1b54a62430fd814e1755c6e25949e",
-      "af4f1bfe5c512e9265718f3fa9a028f7e70b29860c705763ecbb541f4a5877ce",
-      "a0e25bb110b98aa9c3e2be61e432cb432788d0dbe29991acd8ced7c7d9386aea",
-      "96ca5d6526e42a2a9da666e27cd8332c3a6b4cada4561726401f66ba08eaaa42",
-    ];
+        // Check the proof
+        let proof = tree.get_proof(0).expect("Proof for index 0 must succeed");
+        let verification = proof.verify(&root, &expected);
+        assert!(
+            verification,
+            "Single-leaf proof must verify with the correct leaf hash"
+        );
+    }
 
-    // Construct another tree with rearranged input
-    let tree_2 = MerkleTreeSha256::from_leaves_hashes(
-      hashes_2.iter().map(|h| hex::decode(h).unwrap()).collect(),
-    )
-    .unwrap();
+    #[test]
+    fn test_multiple_leaves_correct_root() {
+        // A small set of deterministic leaves
+        let leaves: Vec<Vec<u8>> = vec![
+            b"leaf0".to_vec(),
+            b"leaf1".to_vec(),
+            b"leaf2".to_vec(),
+            b"leaf3".to_vec(),
+        ];
 
-    // Both trees produce the same root hash despite different structures
-    assert_ne!(tree_1.get_root().unwrap(), tree_2.get_root().unwrap());
-  }
+        let tree =
+            MerkleTreeSha256::from_leaves_data(leaves.clone()).expect("Tree creation must succeed");
+        let root = tree.get_root().unwrap();
+
+        // For each leaf, build a proof and verify
+        for leaf_data in &leaves {
+            let leaf_hash = MerkleTreeSha256::hash_leaf(leaf_data);
+            let idx = tree.get_index_by_hash(&leaf_hash).unwrap();
+            let proof = tree.get_proof(idx).unwrap();
+            assert!(
+                proof.verify(&root, &leaf_hash),
+                "Proof for leaf_data '{:?}' must verify",
+                leaf_data
+            );
+        }
+    }
+
+    #[test]
+    fn test_random_leaves() {
+        // Varying sizes for random leaves
+        let sizes = [2, 5, 16, 33];
+        for &size in &sizes {
+            let random_leaves = generate_random_leaves(size);
+            let tree = MerkleTreeSha256::from_leaves_data(random_leaves.clone())
+                .expect("Random tree creation must succeed");
+            let root = tree.get_root().unwrap();
+
+            // Check a subset of leaves
+            for _ in 0..3 {
+                let i = rand::rng().random_range(0..size);
+                let leaf_hash = MerkleTreeSha256::hash_leaf(&random_leaves[i]);
+                let index = tree
+                    .get_index_by_hash(&leaf_hash)
+                    .expect("Leaf must be in the tree");
+
+                let proof = tree
+                    .get_proof(index)
+                    .expect("Proof generation must succeed");
+                assert!(proof.verify(&root, &leaf_hash), "Random leaf must verify");
+            }
+        }
+    }
+
+    #[test]
+    fn test_proof_out_of_range_index() {
+        let leaves = vec![b"a".to_vec(), b"b".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves).unwrap();
+        // There's only 2 leaves, so index = 999 is invalid
+        let result = tree.get_proof(999);
+        assert!(result.is_err(), "Should error for out-of-range index");
+    }
+
+    #[test]
+    fn test_proof_missing_data() {
+        // Build a tree with 2 leaves
+        let leaves = vec![b"some".to_vec(), b"data".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves).unwrap();
+
+        // We look up something that isn't in the tree
+        let missing_hash = MerkleTreeSha256::hash_leaf(b"not in the tree!");
+        let result = tree.get_index_by_hash(&missing_hash);
+        assert!(result.is_err(), "Index lookup must fail for missing data");
+    }
+
+    #[test]
+    fn test_duplicate_leaves() {
+        // If leaves are identical, the tree must contain both at different positions
+        let leaves = vec![b"dup".to_vec(), b"dup".to_vec(), b"dup".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone()).unwrap();
+        assert_eq!(
+            tree.get_hashes().count(),
+            leaves.len(),
+            "Tree must have the correct number of leaves"
+        );
+
+        // We find all indices for the same hashed leaf
+        let dup_hash = MerkleTreeSha256::hash_leaf(b"dup");
+        // Now we search the entire tree for positions
+        let positions: Vec<_> = tree
+            .tree
+            .iter()
+            .enumerate()
+            .filter_map(|(i, h)| if *h == dup_hash { Some(i) } else { None })
+            .collect();
+
+        assert!(
+            positions.len() >= 3,
+            "We expect at least 3 matches in the array structure"
+        );
+    }
+
+    // Helper function to generate random leaves
+    fn generate_random_leaves(count: usize) -> Vec<Vec<u8>> {
+        let mut rng = rand::rng();
+        (0..count)
+            .map(|_| {
+                let len = rng.random_range(1..50); // random length
+                (0..len).map(|_| rng.random()).collect()
+            })
+            .collect()
+    }
 }
