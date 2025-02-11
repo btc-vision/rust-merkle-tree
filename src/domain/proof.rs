@@ -29,8 +29,7 @@ where
         self.steps
             .iter()
             .map(|(sib, is_left)| {
-                let mut hash = sib.clone();
-                //hash.push(if *is_left { 1 } else { 0 });
+                let hash = sib.clone();
                 hash
             })
             .collect()
