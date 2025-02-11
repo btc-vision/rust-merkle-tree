@@ -24,14 +24,22 @@ where
         }
     }
 
-    /// Return the sibling hashes only (without direction flags), if needed.
+    /// Return the sibling hashes only, with direction flags as the last byte.
     pub fn proof_hashes(&self) -> Vec<Vec<u8>> {
-        self.steps.iter().map(|(h, _)| h.clone()).collect()
+        self.steps
+            .iter()
+            .map(|(sib, is_left)| {
+                let mut hash = sib.clone();
+                //hash.push(if *is_left { 1 } else { 0 });
+                hash
+            })
+            .collect()
     }
 
     /// Compute the Merkle root by folding over `(sibling, is_left)`.
     pub fn root(&self, leaf_hash: &[u8]) -> Vec<u8> {
         let mut current = leaf_hash.to_vec();
+
         for (sib, is_left) in self.steps.iter() {
             if *is_left {
                 current = T::hash_nodes(sib, &current);
@@ -173,7 +181,7 @@ mod tests {
         //let leaf_hash = MerkleTreeSha256::hash_leaf(leaf_data);
 
         let sibling_data = b"sibling_data";
-        let sibling_hash = MerkleTreeSha256::hash_leaf(sibling_data);
+        let mut sibling_hash = MerkleTreeSha256::hash_leaf(sibling_data);
 
         let proof = MerkleProofInner::<MerkleTreeSha256>::new(vec![(sibling_hash.clone(), true)]);
         let all_hashes = proof.proof_hashes();
@@ -182,6 +190,8 @@ mod tests {
             1,
             "One-step proof must have exactly 1 sibling"
         );
+
+        //sibling_hash.push(1); // Right sibling
         assert_eq!(
             all_hashes[0], sibling_hash,
             "Proof hash must match the sibling's hash"

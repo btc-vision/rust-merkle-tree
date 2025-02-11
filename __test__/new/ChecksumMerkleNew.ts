@@ -16,6 +16,14 @@ export class ChecksumMerkle {
         return this.tree.rootHex();
     }
 
+    public get rootBytes(): Uint8Array {
+        if (!this.tree) {
+            throw new Error('[Checksum] Merkle tree not generated (Get root bytes)');
+        }
+
+        return this.tree.root();
+    }
+
     public static toBytes(value: [number, Uint8Array]): Uint8Array {
         const writer = new BinaryWriter(1 + value[1].length);
         writer.writeU8(value[0]);
@@ -24,8 +32,8 @@ export class ChecksumMerkle {
         return writer.getBuffer();
     }
 
-    public static verify(root: Uint8Array, values: [number, Uint8Array], proof: string[], pos: number, size: number): boolean {
-        const generatedProof = new MerkleProof(proof.map((p) => toBytes(p)), size, pos);
+    public static verify(root: Uint8Array, values: [number, Uint8Array], proof: string[]): boolean {
+        const generatedProof = new MerkleProof(proof.map((p) => toBytes(p)));
         return generatedProof.verify(root, MerkleTree.hash(ChecksumMerkle.toBytes(values)));
     }
 
@@ -53,7 +61,7 @@ export class ChecksumMerkle {
         }
 
         const result: BlockHeaderChecksumProof = [];
-        const hashes = this.tree.hashes().reverse();
+        const hashes = this.tree.hashes();
 
         for (let i = 0; i < hashes.length; i++) {
             const hash = hashes[i];

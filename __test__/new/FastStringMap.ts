@@ -88,7 +88,7 @@ export class FastStringMap<T> implements Map<string, T> {
     /**
      * Iterates over [key, value] pairs in insertion order.
      */
-    public* entries(): IterableIterator<[string, T]> {
+    public* entries(): MapIterator<[string, T]> {
         for (const key of this.keyOrder) {
             yield [key, this.items[key]];
         }
@@ -97,14 +97,14 @@ export class FastStringMap<T> implements Map<string, T> {
     /**
      * Iterates over keys in insertion order.
      */
-    public* keys(): IterableIterator<string> {
+    public* keys(): MapIterator<string> {
         yield* this.keyOrder;
     }
 
     /**
      * Iterates over values in insertion order.
      */
-    public* values(): IterableIterator<T> {
+    public* values(): MapIterator<T> {
         for (const key of this.keyOrder) {
             yield this.items[key];
         }
@@ -125,7 +125,7 @@ export class FastStringMap<T> implements Map<string, T> {
     /**
      * Makes the map iterable with `for...of`, yielding [key, value] pairs.
      */
-    public [Symbol.iterator](): IterableIterator<[string, T]> {
+    public [Symbol.iterator](): MapIterator<[string, T]> {
         return this.entries();
     }
 }

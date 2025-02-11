@@ -11,14 +11,14 @@ import { MerkleProof, MerkleTree as MerkleTreeRust } from '../../index.js';
 import { FastBigIntMap } from './FastBigIntMap.js';
 
 export class StateMerkleTree extends MerkleTree<MemorySlotPointer, MemorySlotData<bigint>> {
-    public static verify(root: string, values: Buffer[] | Uint8Array[], proof: string[], size: number, pos: number): boolean {
+    public static verify(root: string, values: Buffer[] | Uint8Array[], proof: string[]): boolean {
         const writer = new BinaryWriter(32 * values.length);
         for (const value of values) {
             writer.writeBytes(value);
         }
 
         const data = writer.getBuffer();
-        return new MerkleProof(proof.map((p) => toBytes(p)), pos, size).verify(
+        return new MerkleProof(proof.map((p) => toBytes(p))).verify(
             toBytes(root),
             MerkleTreeRust.hash(data),
         );

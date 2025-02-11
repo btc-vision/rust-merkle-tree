@@ -250,7 +250,6 @@ mod tests {
 
     #[test]
     fn test_multiple_leaves_correct_root() {
-        // A small set of deterministic leaves
         let leaves: Vec<Vec<u8>> = vec![
             b"leaf0".to_vec(),
             b"leaf1".to_vec(),
@@ -267,6 +266,12 @@ mod tests {
             let leaf_hash = MerkleTreeSha256::hash_leaf(leaf_data);
             let idx = tree.get_index_by_hash(&leaf_hash).unwrap();
             let proof = tree.get_proof(idx).unwrap();
+
+            println!(
+                "validating proof for leaf_data: {:?}",
+                proof.verify(&root, &leaf_hash)
+            );
+
             assert!(
                 proof.verify(&root, &leaf_hash),
                 "Proof for leaf_data '{:?}' must verify",
