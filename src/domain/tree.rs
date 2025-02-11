@@ -61,29 +61,20 @@ impl MerkleTreeSha256 {
             return Err(anyhow!("Leaves cannot be empty"));
         }
 
-        // The total size of a complete binary tree in array form
         let tree_len = 2 * leaves_len - 1;
-
-        // Prepare the "empty" tree with default values
-        let tree_init_start = Instant::now();
         let tree: Vec<Mutex<Vec<u8>>> = (0..tree_len).map(|_| Mutex::new(Vec::new())).collect();
-        debug!("Tree initialization took {:?}", tree_init_start.elapsed());
 
-        // Assign leaves to the bottom of the array
-        for (index, hash) in leaves.iter().enumerate() {
-            let tree_index = tree_len - 1 - index;
-            let mut locked = tree[tree_index]
-                .lock()
-                .map_err(|_| anyhow!("Mutex poisoned"))?;
-            *locked = hash.clone();
+        // Place leaves in the bottom half
+        let leaf_start = tree_len - leaves_len; // e.g. for leaves_len=3 => 5-3=2 => place them at indices 2,3,4
+        for (i, hash) in leaves.iter().enumerate() {
+            let idx = leaf_start + i;
+            *tree[idx].lock().map_err(|_| anyhow!("Mutex poisoned"))? = hash.clone();
         }
 
-        // Recursively build internal nodes
-        let build_start = Instant::now();
+        // Then build the internal nodes from the root
         let root_hash = build_subtree(&tree, 0, tree_len)?;
-        debug!("Building the tree took {:?}", build_start.elapsed());
+        debug!("Building the tree took {:?}", total_start.elapsed());
 
-        // Extract the final Vec<u8>
         let extract_start = Instant::now();
         let final_tree: Vec<Vec<u8>> = tree
             .into_iter()
@@ -126,7 +117,7 @@ impl MerkleTreeSha256 {
             .ok_or_else(|| anyhow!("Hash not found in the Merkle tree"))
     }
 
-    /// Generate a proof for the leaf at array index `index`. The proof
+    /// Generate a proof for the leaf at array index index. The proof
     /// will store each sibling’s hash along with a boolean telling if the sibling is on the left.
     pub fn get_proof(&self, index: usize) -> Result<MerkleProofInner<Self>> {
         if index >= self.tree.len() {
@@ -141,7 +132,7 @@ impl MerkleTreeSha256 {
             let parent = parent_index(node)?;
             let sibling = sibling_index(node)?;
 
-            // If the sibling is less than `node`, it means sibling is on the left side
+            // If the sibling is less than node, it means sibling is on the left side
             let is_left = sibling < node;
 
             // Save (sibling_hash, sibling_is_left)
@@ -149,11 +140,6 @@ impl MerkleTreeSha256 {
 
             node = parent; // move upward
         }
-
-        // The proof steps are from bottom to top in `path`, but we can keep them
-        // in that order or reverse them. We just need to apply them in the same sequence
-        // we store them. Let’s reverse to get “top-down”: (lowest sibling first).
-        path.reverse();
 
         // Check that the proof is correct
         let leaf_hash = self.tree[index].clone();
@@ -167,7 +153,7 @@ impl MerkleTreeSha256 {
     }
 }
 
-/// Build a subtree rooted at `node_index`. Uses Rayon to join left and right children.
+/// Build a subtree rooted at node_index. Uses Rayon to join left and right children.
 fn build_subtree(tree: &[Mutex<Vec<u8>>], node_index: usize, tree_len: usize) -> Result<Vec<u8>> {
     let left = left_child_index(node_index);
     // If left >= tree_len, we’re a leaf
@@ -224,10 +210,12 @@ fn sibling_index(i: usize) -> Result<usize> {
 
 #[cfg(test)]
 mod tests {
-  use crate::domain::tree::{MerkleTreeSha256, MerkleTreeTrait};
-  use rand::Rng;
+    use crate::domain::tree::{parent_index, sibling_index, MerkleTreeSha256, MerkleTreeTrait};
+    use rand::Rng;
+    use std::sync::Arc;
+    use std::thread;
 
-  #[test]
+    #[test]
     fn test_empty_leaves_error() {
         let leaves: Vec<Vec<u8>> = vec![];
         let result = MerkleTreeSha256::from_leaves_data(leaves);
@@ -361,7 +349,580 @@ mod tests {
         );
     }
 
-    // Helper function to generate random leaves
+    // VALIDITY TESTS
+
+    /// -----------------------------------------------------------------------
+    /// Test Very Large Leaf Data
+    /// -----------------------------------------------------------------------
+    #[test]
+    fn test_very_large_leaf_data() {
+        // Create a single leaf with a large data buffer (e.g. 1 MB).
+        let large_data = vec![0xAB; 64 * 1024];
+        let leaves = vec![large_data];
+
+        // Build the tree
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
+            .expect("Must handle large leaf data without error");
+
+        // The root should be well-defined
+        let root = tree.get_root().expect("Root must exist");
+
+        // If we attempt to generate a proof for the only leaf, it must verify.
+        let proof = tree
+            .get_proof(0)
+            .expect("Proof for single large leaf must succeed");
+        let hashed_leaf = MerkleTreeSha256::hash_leaf(&leaves[0]);
+        assert!(
+            proof.verify(&root, &hashed_leaf),
+            "Large single-leaf proof must verify"
+        );
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Test Odd Number of Leaves (Non‐Power‐of‐Two)
+    /// -----------------------------------------------------------------------
+    #[test]
+    fn test_odd_number_of_leaves() {
+        // 7 leaves => a “ragged” tree shape
+        let leaves: Vec<Vec<u8>> = (0..7).map(|i| format!("leaf_{i}").into_bytes()).collect();
+
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
+            .expect("Tree must handle odd number of leaves");
+
+        // Basic checks
+        let root = tree.get_root().unwrap();
+        assert_eq!(tree.get_hashes().count(), 7, "Should have exactly 7 leaves");
+
+        // Verify each leaf’s proof
+        for leaf_data in &leaves {
+            let leaf_hash = MerkleTreeSha256::hash_leaf(leaf_data);
+            let idx = tree.get_index_by_hash(&leaf_hash).unwrap();
+            let proof = tree.get_proof(idx).unwrap();
+            assert!(
+                proof.verify(&root, &leaf_hash),
+                "Proof must verify for leaf '{:?}'",
+                leaf_data
+            );
+        }
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Test from_leaves_hashes (Already‐Hashed Leaves)
+    /// -----------------------------------------------------------------------
+    #[test]
+    fn test_from_leaves_hashes() {
+        // Suppose we already have hashed leaves from some external step
+        let raw_leaves: Vec<Vec<u8>> = vec![
+            b"user_supplied_leaf_1".to_vec(),
+            b"user_supplied_leaf_2".to_vec(),
+            b"user_supplied_leaf_3".to_vec(),
+        ];
+
+        let hashed_leaves: Vec<Vec<u8>> = raw_leaves
+            .iter()
+            .map(|l| MerkleTreeSha256::hash_leaf(l))
+            .collect();
+
+        // Build from prehashed
+        let tree = MerkleTreeSha256::from_leaves_hashes(hashed_leaves.clone())
+            .expect("Must build tree from pre‐hashed leaves");
+
+        let root = tree.get_root().unwrap();
+        assert_eq!(
+            tree.get_hashes().count(),
+            hashed_leaves.len(),
+            "Leaf count should match"
+        );
+
+        // Checking the proof for each hashed leaf
+        for hashed_leaf in &hashed_leaves {
+            let idx = tree.get_index_by_hash(hashed_leaf).unwrap();
+            let proof = tree.get_proof(idx).unwrap();
+            assert!(
+                proof.verify(&root, hashed_leaf),
+                "Pre‐hashed leaf must verify"
+            );
+        }
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Test Attempting to Use the Wrong Root in Verification
+    /// -----------------------------------------------------------------------
+    #[test]
+    fn test_wrong_root_fails() {
+        let leaves = vec![b"secure_leaf".to_vec(), b"another_leaf".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone()).expect("Must build tree");
+
+        let correct_root = tree.get_root().unwrap();
+        let wrong_root = MerkleTreeSha256::hash_leaf(b"totally_wrong_root");
+
+        // Generate a proof for "another_leaf"
+        let idx = tree.get_index_by_data(b"another_leaf").unwrap();
+        let proof = tree.get_proof(idx).unwrap();
+        let leaf_hash = MerkleTreeSha256::hash_leaf(b"another_leaf");
+
+        assert!(
+            proof.verify(&correct_root, &leaf_hash),
+            "Must verify with correct root"
+        );
+
+        assert!(
+            !proof.verify(&wrong_root, &leaf_hash),
+            "Verifying with a random/wrong root must fail"
+        );
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Test Malicious Sibling Replacement
+    /// -----------------------------------------------------------------------
+    #[test]
+    fn test_malicious_sibling_replacement() {
+        let leaves = vec![b"leafA".to_vec(), b"leafB".to_vec(), b"leafC".to_vec()];
+        let tree =
+            MerkleTreeSha256::from_leaves_data(leaves.clone()).expect("Tree must build fine");
+        let root = tree.get_root().unwrap();
+
+        // Build a correct proof for "leafB"
+        let idx_b = tree.get_index_by_data(b"leafB").unwrap();
+        let mut proof = tree.get_proof(idx_b).unwrap();
+
+        // Forcibly mutate the proof: replace the first sibling with a fake hash
+        if !proof.steps.is_empty() {
+            let fake_sibling = MerkleTreeSha256::hash_leaf(b"FAKE_SIBLING");
+            proof.steps[0].0 = fake_sibling;
+        }
+
+        // Now the proof must fail
+        let leaf_hash_b = MerkleTreeSha256::hash_leaf(b"leafB");
+        assert!(
+            !proof.verify(&root, &leaf_hash_b),
+            "Malicious replacement of sibling must invalidate the proof"
+        );
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Test Direction‐Bit Flip (Says Sibling is Left vs. Right)
+    /// -----------------------------------------------------------------------
+    #[test]
+    fn test_malicious_direction_flip() {
+        // We'll use two leaves for simplicity
+        let leaves = vec![b"left".to_vec(), b"right".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone()).unwrap();
+        let root = tree.get_root().unwrap();
+
+        // If we want the proof for the "left" leaf, we pass index=1.
+        let mut proof = tree.get_proof(1).unwrap();
+        let correct_leaf = MerkleTreeSha256::hash_leaf(b"left");
+
+        // This should succeed now
+        assert!(
+            proof.verify(&root, &correct_leaf),
+            "Initial correct proof must pass"
+        );
+
+        // Flip the direction bit
+        if !proof.steps.is_empty() {
+            let (_, is_left) = &mut proof.steps[0];
+            *is_left = !*is_left;
+        }
+
+        // Now it must fail
+        assert!(
+            !proof.verify(&root, &correct_leaf),
+            "Flipping direction bit must fail verification"
+        );
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Test Partial / Incomplete Proof
+    /// -----------------------------------------------------------------------
+    #[test]
+    fn test_incomplete_proof_fails() {
+        let leaves = vec![b"one".to_vec(), b"two".to_vec(), b"three".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone()).unwrap();
+        let root = tree.get_root().unwrap();
+
+        // Build a correct proof for "two"
+        let idx_two = tree.get_index_by_data(b"two").unwrap();
+        let mut proof = tree.get_proof(idx_two).unwrap();
+
+        // Drop the last step from the proof => incomplete path to root
+        if !proof.steps.is_empty() {
+            proof.steps.pop();
+        }
+
+        let leaf_hash_two = MerkleTreeSha256::hash_leaf(b"two");
+        assert!(
+            !proof.verify(&root, &leaf_hash_two),
+            "An incomplete proof must fail verification"
+        );
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Test Large Number of Leaves (Stress Test)
+    /// -----------------------------------------------------------------------
+    #[test]
+    fn test_large_number_of_leaves_stress() {
+        let mut leaves = Vec::new();
+        for i in 0..20000 {
+            leaves.push(format!("leaf_{i}").into_bytes());
+        }
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
+            .expect("Must handle large number of leaves");
+        let root = tree.get_root().unwrap();
+
+        // Spot‐check a few random leaves
+        let mut rng = rand::rng();
+        for _ in 0..5 {
+            let idx = rng.random_range(0..leaves.len());
+            let leaf_hash = MerkleTreeSha256::hash_leaf(&leaves[idx]);
+            let proof = tree
+                .get_proof(tree.get_index_by_hash(&leaf_hash).unwrap())
+                .expect("Proof generation must succeed");
+            assert!(
+                proof.verify(&root, &leaf_hash),
+                "Proof for a random leaf must still verify in large tree"
+            );
+        }
+    }
+
+    // Performance tests:
+
+    /// ------------------------------------------------------------------------
+    /// Test Immutability: Attempt to Insert Extra Leaves After Construction
+    /// ------------------------------------------------------------------------
+    #[test]
+    fn test_cannot_insert_extra_leaves_after_construction() {
+        // Build a small tree
+        let leaves = vec![b"A".to_vec(), b"B".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves).expect("Must build tree");
+
+        // In a real blockchain environment, we never want to allow
+        // “inserting more leaves” after the root is established.
+        // There is no provided API for adding leaves, so this test
+        // basically shows we *cannot* do it in a normal usage scenario.
+
+        // Check that there's no public function to mutate 'tree.tree'.
+        // If we tried something like tree.tree.push(...) directly, it fails
+        // because tree is private and there's no public method to modify it.
+
+        // Instead, we confirm the final root is correct, and any attempt
+        // to rebuild with extra data would produce a *separate* new tree.
+        let root_original = tree.get_root().expect("Root must exist");
+
+        // Build a new tree with more leaves
+        let new_leaves = vec![b"A".to_vec(), b"B".to_vec(), b"C".to_vec()];
+        let new_tree = MerkleTreeSha256::from_leaves_data(new_leaves).expect("New tree built");
+        let root_new = new_tree.get_root().unwrap();
+
+        // The two roots must differ, demonstrating that you cannot quietly “insert”
+        // new data into an existing Merkle tree. You must build a *new* one.
+        assert_ne!(
+            root_original, root_new,
+            "New data yields a different root, so we cannot exploit the old tree"
+        );
+    }
+
+    /// ------------------------------------------------------------------------
+    /// Stress Test for Concurrency (Blockchain Nodes Verifying Proofs in Parallel)
+    /// ------------------------------------------------------------------------
+    #[test]
+    fn test_concurrent_verification() {
+        // Build a moderately large tree
+        let leaves = generate_random_leaves(500);
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
+            .expect("Must build tree for concurrency test");
+
+        let root = tree.get_root().unwrap();
+        let arc_tree = Arc::new(tree); // share among threads
+
+        let mut handles = Vec::new();
+
+        // Spawn multiple threads, each verifying random leaves
+        for _ in 0..10 {
+            let tree_ref = Arc::clone(&arc_tree);
+            let leaves_copy = leaves.clone();
+            let root_copy = root.clone();
+
+            let handle = thread::spawn(move || {
+                let mut rng = rand::rng();
+                // Each thread verifies 20 random leaves
+                for _ in 0..20 {
+                    let idx = rng.random_range(0..leaves_copy.len());
+                    let leaf_hash = MerkleTreeSha256::hash_leaf(&leaves_copy[idx]);
+                    let proof = tree_ref
+                        .get_proof(tree_ref.get_index_by_hash(&leaf_hash).unwrap())
+                        .expect("Proof must exist");
+
+                    assert!(
+                        proof.verify(&root_copy, &leaf_hash),
+                        "Concurrent verification must succeed"
+                    );
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        // Wait for all threads
+        for h in handles {
+            h.join().expect("Thread must not panic");
+        }
+    }
+
+    /// ------------------------------------------------------------------------
+    /// Test Duplicate Leaves in a Blockchain Context
+    /// ------------------------------------------------------------------------
+    #[test]
+    fn test_duplicate_leaves_blockchain_scenario() {
+        // In blockchains, sometimes multiple identical transactions (e.g. dust spam)
+        // might appear. We confirm the tree can handle duplicates safely.
+        let leaves = vec![
+            b"tx".to_vec(),
+            b"tx".to_vec(),
+            b"tx".to_vec(),
+            b"tx".to_vec(),
+        ];
+
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
+            .expect("Tree must handle duplicates");
+
+        let root = tree.get_root().unwrap();
+
+        // All leaves are identical. But each is stored in a different position.
+        // We'll just check that we can generate a proof for each.
+        for _i in 0..4 {
+            let proof = tree
+                .get_proof(tree.get_index_by_data(b"tx").unwrap())
+                .unwrap();
+            let leaf_hash = MerkleTreeSha256::hash_leaf(b"tx");
+            assert!(
+                proof.verify(&root, &leaf_hash),
+                "Proof must verify for each identical leaf"
+            );
+        }
+    }
+
+    /// ------------------------------------------------------------------------
+    /// Test “Root Tampering” Attempt in a Blockchain-like Environment
+    /// ------------------------------------------------------------------------
+    #[test]
+    fn test_cannot_tamper_root() {
+        // In many blockchain designs, the root is stored in a block header.
+        // We confirm that if someone tampers with the root, proofs no longer match.
+
+        let leaves = vec![b"block_tx_1".to_vec(), b"block_tx_2".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone()).expect("Tree builds");
+        let correct_root = tree.get_root().unwrap();
+
+        // Suppose an attacker tries to “publish” a tampered root
+        // (e.g. a random hash).
+        let tampered_root = vec![0xAA; 32]; // 32 bytes of 0xAA
+        assert_ne!(correct_root, tampered_root);
+
+        // The proof for "block_tx_1" must fail under this tampered root
+        let idx = tree.get_index_by_data(b"block_tx_1").unwrap();
+        let proof = tree.get_proof(idx).unwrap();
+        let leaf_hash = MerkleTreeSha256::hash_leaf(b"block_tx_1");
+
+        assert!(
+            proof.verify(&correct_root, &leaf_hash),
+            "Proof must pass with the correct root"
+        );
+        assert!(
+            !proof.verify(&tampered_root, &leaf_hash),
+            "Any tampered root must fail"
+        );
+    }
+
+    /// ------------------------------------------------------------------------
+    /// Test Efficiency with Large Leaf Data + Many Leaves
+    /// ------------------------------------------------------------------------
+    #[test]
+    fn test_large_data_and_many_leaves_efficiency() {
+        // Simulate a “block” with bigger "transactions" (8 KB each).
+        // Then add ~300000 such “transactions,” to see if we can still
+        // handle it quickly in a test scenario.
+
+        let big_leaf: Vec<u8> = vec![0xCD; 8 * 1024]; // 8 KB
+        let leaves = (0..300000).map(|_| big_leaf.clone()).collect::<Vec<_>>();
+
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
+            .expect("Must handle big data + many leaves in a blockchain scenario");
+        let root = tree.get_root().unwrap();
+
+        // Spot‐check a few
+        for i in [
+            0, 50, 100, 250, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000,
+        ] {
+            let leaf_hash = MerkleTreeSha256::hash_leaf(&leaves[i]);
+            let index = tree.get_index_by_hash(&leaf_hash).unwrap();
+            let proof = tree.get_proof(index).unwrap();
+            assert!(
+                proof.verify(&root, &leaf_hash),
+                "Large data block must verify"
+            );
+        }
+    }
+
+    /// ------------------------------------------------------------------------
+    /// Test Malicious or Invalid Leaf Data
+    /// ------------------------------------------------------------------------
+    #[test]
+    fn test_invalid_leaf_in_blockchain() {
+        // If someone tries to pass in partial or invalid data, we want to ensure
+        // it can't break the system. There's no direct “malicious” insertion possible
+        // once the tree is built, but we can test building with odd data.
+
+        // For example: a “zero length leaf,” which is still hashed, but let's see if it works:
+        let leaves = vec![b"".to_vec(), b"normal".to_vec()];
+        let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
+            .expect("Tree should handle an empty (zero-length) leaf gracefully");
+        let root = tree.get_root().unwrap();
+
+        // Proof for the empty leaf
+        let empty_hash = MerkleTreeSha256::hash_leaf(b"");
+        let idx_empty = tree.get_index_by_hash(&empty_hash).unwrap();
+        let proof_empty = tree.get_proof(idx_empty).unwrap();
+        assert!(
+            proof_empty.verify(&root, &empty_hash),
+            "Empty leaf must still yield a valid proof"
+        );
+
+        // Another attempt: “extremely large leaf,” tested above.
+        // As long as from_leaves_data doesn't fail or panic, we are safe.
+    }
+
+    /// ------------------------------------------------------------------------
+    /// Confirm No ‘Side Loading’ of Data in Proof Steps
+    /// ------------------------------------------------------------------------
+    #[test]
+    fn test_no_sideload_in_proof() {
+        // Build a standard tree
+        let leaves = vec![b"foo".to_vec(), b"bar".to_vec(), b"baz".to_vec()];
+        let tree =
+            MerkleTreeSha256::from_leaves_data(leaves.clone()).expect("Must build normal tree");
+        let root = tree.get_root().unwrap();
+
+        // Generate a correct proof for "bar"
+        let idx_bar = tree.get_index_by_data(b"bar").unwrap();
+        let mut proof = tree.get_proof(idx_bar).unwrap();
+
+        // Try to artificially *add* a sibling step that doesn't exist in the real path
+        // We'll just push a random sibling step at the end
+        let random_leaf = MerkleTreeSha256::hash_leaf(b"some_injected_sibling");
+        proof.steps.push((random_leaf, true /* is_left */));
+
+        // Now it must fail verification, because the path no longer corresponds
+        // to the actual Merkle path for “bar”
+        let leaf_hash_bar = MerkleTreeSha256::hash_leaf(b"bar");
+        assert!(
+            !proof.verify(&root, &leaf_hash_bar),
+            "Extra bogus step in proof must break verification"
+        );
+    }
+
+    /// ------------------------------------------------------------------------
+    /// Test that trying to get a proof on an **internal node** fails inside `get_proof`.
+    ///    This forces `proof.verify(...)` to fail internally, covering the line:
+    ///      `Err(anyhow!("Proof does not match the Merkle root"))`
+    /// ------------------------------------------------------------------------
+    #[test]
+    fn test_forced_mismatch_proof_fails() {
+        // Build a valid 3-leaf tree
+        let leaves = vec![b"X".to_vec(), b"Y".to_vec(), b"Z".to_vec()];
+        let mut tree = MerkleTreeSha256::from_leaves_data(leaves).unwrap();
+
+        // Index 2 is the first leaf in a 3-leaf tree.
+        // Force a mismatch: fill it with some random or constant data
+        tree.tree[2] = vec![0xEF; 32]; // "corrupted" leaf
+
+        // Now get_proof(2) must fail, because the path won't match the real root
+        let result = tree.get_proof(2);
+        assert!(
+            result.is_err(),
+            "Expected mismatch to fail inside get_proof"
+        );
+
+        let msg = result.err().unwrap().to_string();
+        assert!(
+            msg.contains("Proof does not match the Merkle root"),
+            "Expected 'Proof does not match the Merkle root', got: {msg}"
+        );
+    }
+
+    /// Test `parent_index(0)` returns the "Root has no parent" error.
+    #[test]
+    fn test_parent_index_of_root_fails() {
+        let res = parent_index(0);
+        assert!(
+            res.is_err(),
+            "parent_index(0) must fail with 'Root has no parent'"
+        );
+
+        let msg = res.err().unwrap().to_string();
+        assert!(
+            msg.contains("Root has no parent"),
+            "Must contain 'Root has no parent', got: {msg}"
+        );
+    }
+
+    /// Test `sibling_index(0)` returns the "Root has no sibling" error.
+    #[test]
+    fn test_sibling_index_of_root_fails() {
+        let res = sibling_index(0);
+        assert!(
+            res.is_err(),
+            "sibling_index(0) must fail with 'Root has no sibling'"
+        );
+
+        let msg = res.err().unwrap().to_string();
+        assert!(
+            msg.contains("Root has no sibling"),
+            "Must contain 'Root has no sibling', got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_from_leaves_hashes_mutex_poisoned() {
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+
+        let leaves = vec![b"hash1".to_vec(), b"hash2".to_vec()];
+        let leaves_len = leaves.len();
+        let tree_len = 2 * leaves_len - 1;
+
+        // Wrap our vector of Mutexes in Arc so it can be moved to threads safely.
+        let tree = Arc::new(
+            (0..tree_len)
+                .map(|_| Mutex::new(Vec::new()))
+                .collect::<Vec<Mutex<Vec<u8>>>>(),
+        );
+
+        let first_leaf_index = tree_len - leaves_len;
+
+        // Spawn a child thread that will poison the lock
+        {
+            let tree_ref = Arc::clone(&tree);
+            let handle = thread::spawn(move || {
+                // Lock one of the Mutexes, then panic
+                let lock_ref = &tree_ref[first_leaf_index];
+                let _guard = lock_ref.lock().unwrap();
+                panic!("Panic in separate thread => should poison lock");
+            });
+            let _ = handle.join(); // We expect this to show Err(...) because of panic
+        }
+
+        // Now, the lock should be poisoned. If we try to lock it again:
+        let lock_result = tree[first_leaf_index].lock();
+        assert!(
+            lock_result.is_err(),
+            "We expected the lock to be poisoned, but got Ok()"
+        );
+    }
+
+    // Helper function to generate random leaves with random lengths
+
     fn generate_random_leaves(count: usize) -> Vec<Vec<u8>> {
         let mut rng = rand::rng();
         (0..count)

@@ -9,7 +9,7 @@ pub struct MerkleProofInner<T>
 where
     T: MerkleTreeTrait,
 {
-    steps: Vec<(Vec<u8>, bool)>,
+    pub steps: Vec<(Vec<u8>, bool)>,
     phantom: PhantomData<T>,
 }
 
@@ -50,10 +50,10 @@ where
 
 #[cfg(test)]
 mod tests {
-  use crate::domain::proof::MerkleProofInner;
-  use crate::domain::tree::{MerkleTreeSha256, MerkleTreeTrait};
+    use crate::domain::proof::MerkleProofInner;
+    use crate::domain::tree::{MerkleTreeSha256, MerkleTreeTrait};
 
-  #[test]
+    #[test]
     fn test_no_steps_proof() {
         // If the proof has no siblings, the leaf must be the root itself
         let proof = MerkleProofInner::<MerkleTreeSha256>::new(vec![]);
