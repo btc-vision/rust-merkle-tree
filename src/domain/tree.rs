@@ -182,7 +182,7 @@ fn build_subtree(tree: &[Mutex<Vec<u8>>], node_index: usize, tree_len: usize) ->
     Ok(parent_hash)
 }
 
-/// Standard “binary heap” style index calculations:
+/// Standard "binary heap" style index calculations:
 fn left_child_index(i: usize) -> usize {
     2 * i + 1
 }
@@ -388,7 +388,7 @@ mod tests {
     /// -----------------------------------------------------------------------
     #[test]
     fn test_odd_number_of_leaves() {
-        // 7 leaves => a “ragged” tree shape
+        // 7 leaves => a "ragged" tree shape
         let leaves: Vec<Vec<u8>> = (0..7).map(|i| format!("leaf_{i}").into_bytes()).collect();
 
         let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
@@ -603,7 +603,7 @@ mod tests {
         let tree = MerkleTreeSha256::from_leaves_data(leaves).expect("Must build tree");
 
         // In a real blockchain environment, we never want to allow
-        // “inserting more leaves” after the root is established.
+        // "inserting more leaves" after the root is established.
         // There is no provided API for adding leaves, so this test
         // basically shows we *cannot* do it in a normal usage scenario.
 
@@ -620,7 +620,7 @@ mod tests {
         let new_tree = MerkleTreeSha256::from_leaves_data(new_leaves).expect("New tree built");
         let root_new = new_tree.get_root().unwrap();
 
-        // The two roots must differ, demonstrating that you cannot quietly “insert”
+        // The two roots must differ, demonstrating that you cannot quietly "insert"
         // new data into an existing Merkle tree. You must build a *new* one.
         assert_ne!(
             root_original, root_new,
@@ -709,7 +709,7 @@ mod tests {
     }
 
     /// ------------------------------------------------------------------------
-    /// Test “Root Tampering” Attempt in a Blockchain-like Environment
+    /// Test "Root Tampering" Attempt in a Blockchain-like Environment
     /// ------------------------------------------------------------------------
     #[test]
     fn test_cannot_tamper_root() {
@@ -720,7 +720,7 @@ mod tests {
         let tree = MerkleTreeSha256::from_leaves_data(leaves.clone()).expect("Tree builds");
         let correct_root = tree.get_root().unwrap();
 
-        // Suppose an attacker tries to “publish” a tampered root
+        // Suppose an attacker tries to "publish" a tampered root
         // (e.g. a random hash).
         let tampered_root = vec![0xAA; 32]; // 32 bytes of 0xAA
         assert_ne!(correct_root, tampered_root);
@@ -745,8 +745,8 @@ mod tests {
     /// ------------------------------------------------------------------------
     #[test]
     fn test_large_data_and_many_leaves_efficiency() {
-        // Simulate a “block” with bigger "transactions" (8 KB each).
-        // Then add ~300000 such “transactions,” to see if we can still
+        // Simulate a "block" with bigger "transactions" (8 KB each).
+        // Then add ~300000 such "transactions," to see if we can still
         // handle it quickly in a test scenario.
 
         let big_leaf: Vec<u8> = vec![0xCD; 8 * 1024]; // 8 KB
@@ -776,10 +776,10 @@ mod tests {
     #[test]
     fn test_invalid_leaf_in_blockchain() {
         // If someone tries to pass in partial or invalid data, we want to ensure
-        // it can't break the system. There's no direct “malicious” insertion possible
+        // it can't break the system. There's no direct "malicious" insertion possible
         // once the tree is built, but we can test building with odd data.
 
-        // For example: a “zero length leaf,” which is still hashed, but let's see if it works:
+        // For example: a "zero length leaf," which is still hashed, but let's see if it works:
         let leaves = vec![b"".to_vec(), b"normal".to_vec()];
         let tree = MerkleTreeSha256::from_leaves_data(leaves.clone())
             .expect("Tree should handle an empty (zero-length) leaf gracefully");
@@ -794,7 +794,7 @@ mod tests {
             "Empty leaf must still yield a valid proof"
         );
 
-        // Another attempt: “extremely large leaf,” tested above.
+        // Another attempt: "extremely large leaf," tested above.
         // As long as from_leaves_data doesn't fail or panic, we are safe.
     }
 
@@ -819,7 +819,7 @@ mod tests {
         proof.steps.push((random_leaf, true /* is_left */));
 
         // Now it must fail verification, because the path no longer corresponds
-        // to the actual Merkle path for “bar”
+        // to the actual Merkle path for "bar"
         let leaf_hash_bar = MerkleTreeSha256::hash_leaf(b"bar");
         assert!(
             !proof.verify(&root, &leaf_hash_bar),
