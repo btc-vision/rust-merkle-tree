@@ -28,7 +28,7 @@ where
     pub fn proof_hashes(&self) -> Vec<Vec<u8>> {
         self.steps
             .iter()
-            .map(|(sib, is_left)| {
+            .map(|(sib, _is_left)| {
                 let hash = sib.clone();
                 hash
             })
@@ -180,7 +180,7 @@ mod tests {
         //let leaf_hash = MerkleTreeSha256::hash_leaf(leaf_data);
 
         let sibling_data = b"sibling_data";
-        let mut sibling_hash = MerkleTreeSha256::hash_leaf(sibling_data);
+        let sibling_hash = MerkleTreeSha256::hash_leaf(sibling_data);
 
         let proof = MerkleProofInner::<MerkleTreeSha256>::new(vec![(sibling_hash.clone(), true)]);
         let all_hashes = proof.proof_hashes();
