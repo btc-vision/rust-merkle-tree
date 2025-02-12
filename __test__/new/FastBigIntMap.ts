@@ -87,7 +87,7 @@ export class FastBigIntMap implements Map<bigint, bigint> {
     /**
      * Iterates over [key, value] pairs in insertion order.
      */
-    * entries(): IterableIterator<[bigint, bigint]> {
+    * entries(): MapIterator<[bigint, bigint]> {
         for (const key of this.keyOrder) {
             yield [key, this.items[key.toString()]];
         }
@@ -96,14 +96,14 @@ export class FastBigIntMap implements Map<bigint, bigint> {
     /**
      * Iterates over keys in insertion order.
      */
-    * keys(): IterableIterator<bigint> {
+    * keys(): MapIterator<bigint> {
         yield* this.keyOrder;
     }
 
     /**
      * Iterates over values in insertion order.
      */
-    * values(): IterableIterator<bigint> {
+    * values(): MapIterator<bigint> {
         for (const key of this.keyOrder) {
             yield this.items[key.toString()];
         }
@@ -124,7 +124,7 @@ export class FastBigIntMap implements Map<bigint, bigint> {
     /**
      * Makes the map iterable with `for...of`, yielding [key, value] pairs.
      */
-    [Symbol.iterator](): IterableIterator<[bigint, bigint]> {
+    [Symbol.iterator](): MapIterator<[bigint, bigint]> {
         return this.entries();
     }
 }

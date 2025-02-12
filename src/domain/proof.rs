@@ -1,107 +1,222 @@
 use super::tree::MerkleTreeTrait;
 use std::marker::PhantomData;
 
+/// A Merkle proof that holds a list of `(sibling_hash, is_left)` pairs.
+/// `is_left = true` means the sibling is on the left side, so the order is `(sib, current)`.
+/// `is_left = false` means sibling is on the right, so the order is `(current, sib)`.
 #[derive(Default, Debug, PartialEq, Eq)]
 pub struct MerkleProofInner<T>
 where
-  T: MerkleTreeTrait,
+    T: MerkleTreeTrait,
 {
-  hashes: Vec<Vec<u8>>,
-  tree_index: usize,
-  phantom: PhantomData<T>,
+    pub steps: Vec<(Vec<u8>, bool)>,
+    phantom: PhantomData<T>,
 }
 
 impl<T> MerkleProofInner<T>
 where
-  T: MerkleTreeTrait,
+    T: MerkleTreeTrait,
 {
-  pub fn new_from_pos_len(proof_hashes: Vec<Vec<u8>>, pos: usize, len: usize) -> Self {
-    Self::new_from_index(proof_hashes, T::tree_index(len, pos).unwrap())
-  }
-
-  pub fn new_from_index(proof_hashes: Vec<Vec<u8>>, tree_index: usize) -> Self {
-    Self {
-      hashes: proof_hashes,
-      tree_index,
-      phantom: PhantomData,
-    }
-  }
-
-  pub fn proof_hashes(&self) -> Vec<Vec<u8>> {
-    self.hashes.clone()
-  }
-
-  pub fn root(&self, hash: &[u8]) -> Vec<u8> {
-    let mut pos = self.tree_index;
-    let mut index = 0;
-    let mut hash = hash.to_vec();
-
-    while pos > 0 && index < self.hashes.len() {
-      let sibling = T::sibling_index(pos).unwrap();
-      if sibling > pos {
-        hash = T::hash_nodes(&hash, &self.hashes[index]);
-      } else {
-        hash = T::hash_nodes(&self.hashes[index], &hash);
-      }
-      index += 1;
-      pos = T::parent_index(pos).unwrap();
+    pub fn new(steps: Vec<(Vec<u8>, bool)>) -> Self {
+        Self {
+            steps,
+            phantom: PhantomData,
+        }
     }
 
-    hash
-  }
+    /// Return the sibling hashes only, with direction flags as the last byte.
+    pub fn proof_hashes(&self) -> Vec<Vec<u8>> {
+        self.steps
+            .iter()
+            .map(|(sib, is_left)| {
+                let hash = sib.clone();
+                hash
+            })
+            .collect()
+    }
 
-  pub fn verify(&self, root: &[u8], hash: &[u8]) -> bool {
-    self.root(hash).eq(root)
-  }
+    /// Compute the Merkle root by folding over `(sibling, is_left)`.
+    pub fn root(&self, leaf_hash: &[u8]) -> Vec<u8> {
+        let mut current = leaf_hash.to_vec();
+
+        for (sib, is_left) in self.steps.iter() {
+            if *is_left {
+                current = T::hash_nodes(sib, &current);
+            } else {
+                current = T::hash_nodes(&current, sib);
+            }
+        }
+        current
+    }
+
+    /// Verify a proof by comparing the recomputed root with `root`.
+    pub fn verify(&self, root: &[u8], leaf_hash: &[u8]) -> bool {
+        self.root(leaf_hash) == root
+    }
 }
 
 #[cfg(test)]
 mod tests {
-  use super::super::tree::MerkleTreeSha256;
-  use super::MerkleProofInner;
+    use crate::domain::proof::MerkleProofInner;
+    use crate::domain::tree::{MerkleTreeSha256, MerkleTreeTrait};
 
-  #[test]
-  fn test_root() {
-    assert_eq!(
-      MerkleProofInner::<MerkleTreeSha256>::new_from_pos_len(
-        [
-          "39e429c0920f4089a43dbe24a7dfcfe0552bdaabfcc9356cde88f9ea18972bf4",
-          "7c6ecaee2d838527c849bbb35e136530f348f2fce5de833c1c58ee30c3991ab7",
-          "6c593e5a24d589e6af9be6017957b176fc64d3409ede4c22e07d1bebf0b8c90c",
-          "698a6ec0545045c135267cd7b40d912d66437e50e0ba74a4b6e9d1f6d17abdf3",
-        ]
-        .iter()
-        .map(|h| hex::decode(h).unwrap())
-        .collect(),
-        0,
-        12,
-      )
-      .root(
-        &hex::decode("c67892017db365f15687b283fea0741145e1b54a62430fd814e1755c6e25949e").unwrap()
-      ),
-      hex::decode("70cfcac08c42aa7a6a162365d7fdc7e4b0f2b39f1c90fb9e4794ec587371e892").unwrap()
-    )
-  }
+    #[test]
+    fn test_no_steps_proof() {
+        // If the proof has no siblings, the leaf must be the root itself
+        let proof = MerkleProofInner::<MerkleTreeSha256>::new(vec![]);
+        let leaf = b"single_leaf";
+        let leaf_hash = MerkleTreeSha256::hash_leaf(leaf);
 
-  #[test]
-  fn test_proof() {
-    // 18
-    assert!(MerkleProofInner::<MerkleTreeSha256>::new_from_pos_len(
-      [
-        "39e429c0920f4089a43dbe24a7dfcfe0552bdaabfcc9356cde88f9ea18972bf4",
-        "7c6ecaee2d838527c849bbb35e136530f348f2fce5de833c1c58ee30c3991ab7",
-        "6c593e5a24d589e6af9be6017957b176fc64d3409ede4c22e07d1bebf0b8c90c",
-        "698a6ec0545045c135267cd7b40d912d66437e50e0ba74a4b6e9d1f6d17abdf3",
-      ]
-      .iter()
-      .map(|h| hex::decode(h).unwrap())
-      .collect(),
-      0,
-      12
-    )
-    .verify(
-      &hex::decode("70cfcac08c42aa7a6a162365d7fdc7e4b0f2b39f1c90fb9e4794ec587371e892").unwrap(),
-      &hex::decode("c67892017db365f15687b283fea0741145e1b54a62430fd814e1755c6e25949e").unwrap(),
-    ))
-  }
+        // If 'leaf_hash' is also the root, verification is true
+        assert!(
+            proof.verify(&leaf_hash, &leaf_hash),
+            "No-step proof must succeed only when leaf == root"
+        );
+
+        let random_root = MerkleTreeSha256::hash_leaf(b"some_other_data");
+        assert!(
+            !proof.verify(&random_root, &leaf_hash),
+            "Should fail if root != leaf for a no-step proof"
+        );
+    }
+
+    #[test]
+    fn test_single_step_left() {
+        // If sibling is on the left, we do hash_nodes(sibling, current)
+        let leaf_data = b"leaf_data";
+        let leaf_hash = MerkleTreeSha256::hash_leaf(leaf_data);
+
+        let sibling_data = b"sibling_data";
+        let sibling_hash = MerkleTreeSha256::hash_leaf(sibling_data);
+
+        // is_left = true => order is (sibling, leaf)
+        let proof_steps = vec![(sibling_hash.clone(), true)];
+        let proof = MerkleProofInner::<MerkleTreeSha256>::new(proof_steps);
+
+        let correct_root = MerkleTreeSha256::hash_nodes(&sibling_hash, &leaf_hash);
+        assert!(
+            proof.verify(&correct_root, &leaf_hash),
+            "Proof must succeed if the sibling is on the left"
+        );
+
+        let incorrect_root = MerkleTreeSha256::hash_nodes(&leaf_hash, &sibling_hash);
+        assert!(
+            !proof.verify(&incorrect_root, &leaf_hash),
+            "Swapping the order should fail"
+        );
+    }
+
+    #[test]
+    fn test_single_step_right() {
+        // If sibling is on the right, we do hash_nodes(current, sibling)
+        let leaf_data = b"left_leaf";
+        let leaf_hash = MerkleTreeSha256::hash_leaf(leaf_data);
+
+        let sibling_data = b"right_leaf";
+        let sibling_hash = MerkleTreeSha256::hash_leaf(sibling_data);
+
+        // is_left = false => order is (leaf, sibling)
+        let proof_steps = vec![(sibling_hash.clone(), false)];
+        let proof = MerkleProofInner::<MerkleTreeSha256>::new(proof_steps);
+
+        let correct_root = MerkleTreeSha256::hash_nodes(&leaf_hash, &sibling_hash);
+        assert!(
+            proof.verify(&correct_root, &leaf_hash),
+            "Right-step proof must succeed with correct order"
+        );
+
+        let incorrect_root = MerkleTreeSha256::hash_nodes(&sibling_hash, &leaf_hash);
+        assert!(
+            !proof.verify(&incorrect_root, &leaf_hash),
+            "Inverted order must fail"
+        );
+    }
+
+    #[test]
+    fn test_multi_step_proof() {
+        // We'll construct a small Merkle structure by hand:
+        //         R
+        //       /   \
+        //     N1     N2
+        //    /  \   /  \
+        //   A    B C    D
+        // Leaf-level => double-hash: A, B, C, D
+        // Internal nodes => single-hash: N1 = H(A,B), N2 = H(C,D)
+        // Root => R = H(N1, N2)
+        let a = MerkleTreeSha256::hash_leaf(b"A");
+        let b = MerkleTreeSha256::hash_leaf(b"B");
+        let c = MerkleTreeSha256::hash_leaf(b"C");
+        let d = MerkleTreeSha256::hash_leaf(b"D");
+
+        let n1 = MerkleTreeSha256::hash_nodes(&a, &b);
+        let n2 = MerkleTreeSha256::hash_nodes(&c, &d);
+        let r = MerkleTreeSha256::hash_nodes(&n1, &n2);
+
+        // We want the proof for leaf = B => path is:
+        // 1) sibling = A, is_left=true => hash_nodes(A,B) => N1
+        // 2) sibling = N2, is_left=false => hash_nodes(N1,N2) => R
+        let proof_steps = vec![
+            (a.clone(), true),   // A is left
+            (n2.clone(), false), // N2 is right
+        ];
+        let proof = MerkleProofInner::<MerkleTreeSha256>::new(proof_steps);
+
+        // Verify
+        assert!(
+            proof.verify(&r, &b),
+            "Manually built multi-step proof must match the final root"
+        );
+
+        // Confirm it fails if we supply the wrong root
+        let fake_root = MerkleTreeSha256::hash_leaf(b"fake_root");
+        assert!(!proof.verify(&fake_root, &b), "Wrong root must fail");
+    }
+
+    #[test]
+    fn test_proof_hashes_and_hex() {
+        // Just ensure `proof_hashes()` and a hypothetical hex function
+        // produce the correct data. We'll do a one-step proof for simplicity.
+        //let leaf_data = b"leaf_data";
+        //let leaf_hash = MerkleTreeSha256::hash_leaf(leaf_data);
+
+        let sibling_data = b"sibling_data";
+        let mut sibling_hash = MerkleTreeSha256::hash_leaf(sibling_data);
+
+        let proof = MerkleProofInner::<MerkleTreeSha256>::new(vec![(sibling_hash.clone(), true)]);
+        let all_hashes = proof.proof_hashes();
+        assert_eq!(
+            all_hashes.len(),
+            1,
+            "One-step proof must have exactly 1 sibling"
+        );
+
+        //sibling_hash.push(1); // Right sibling
+        assert_eq!(
+            all_hashes[0], sibling_hash,
+            "Proof hash must match the sibling's hash"
+        );
+    }
+
+    #[test]
+    fn test_malicious_proof_fails() {
+        // If we flip the direction bits or the sibling data, verification must fail
+        let leaf_data = b"victim_leaf";
+        let leaf_hash = MerkleTreeSha256::hash_leaf(leaf_data);
+
+        let sibling = b"sibling_data";
+        let sibling_hash = MerkleTreeSha256::hash_leaf(sibling);
+
+        // Suppose the real direction is 'false' => (leaf, sibling)
+        // We'll build a proof with direction = 'true' => (sibling, leaf)
+        let malicious_proof =
+            MerkleProofInner::<MerkleTreeSha256>::new(vec![(sibling_hash.clone(), true)]);
+
+        // The "correct" root if sibling is on the right
+        let correct_root = MerkleTreeSha256::hash_nodes(&leaf_hash, &sibling_hash);
+
+        assert!(
+            !malicious_proof.verify(&correct_root, &leaf_hash),
+            "Malicious proof flipping direction must fail"
+        );
+    }
 }
