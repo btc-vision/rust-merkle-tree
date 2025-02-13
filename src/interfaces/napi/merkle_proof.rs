@@ -39,7 +39,7 @@ impl MerkleProofJs {
             // The sibling-hash is the remaining 32 bytes
             let sibling_hash = data[1..].to_vec();
 
-            converted.push((sibling_hash, is_left));
+            converted.push((is_left, sibling_hash));
         }
 
         Ok(Self {
@@ -85,7 +85,7 @@ impl MerkleProofJs {
         self.inner
             .steps
             .iter()
-            .map(|(hash, is_left)| {
+            .map(|(is_left, hash)| {
                 let mut combined = Vec::with_capacity(33);
                 // First byte is direction
                 combined.push(if *is_left { 1 } else { 0 });
@@ -101,7 +101,7 @@ impl MerkleProofJs {
         self.inner
             .steps
             .iter()
-            .map(|(hash, is_left)| {
+            .map(|(is_left, hash)| {
                 let mut combined = Vec::with_capacity(33);
                 combined.push(if *is_left { 1 } else { 0 });
                 combined.extend_from_slice(hash);

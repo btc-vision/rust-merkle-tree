@@ -136,7 +136,7 @@ impl MerkleTreeSha256 {
             let is_left = sibling < node;
 
             // Save (sibling_hash, sibling_is_left)
-            path.push((self.tree[sibling].clone(), is_left));
+            path.push((is_left, self.tree[sibling].clone()));
 
             node = parent; // move upward
         }
@@ -494,7 +494,7 @@ mod tests {
         // Forcibly mutate the proof: replace the first sibling with a fake hash
         if !proof.steps.is_empty() {
             let fake_sibling = MerkleTreeSha256::hash_leaf(b"FAKE_SIBLING");
-            proof.steps[0].0 = fake_sibling;
+            proof.steps[0].1 = fake_sibling;
         }
 
         // Now the proof must fail
@@ -527,7 +527,7 @@ mod tests {
 
         // Flip the direction bit
         if !proof.steps.is_empty() {
-            let (_, is_left) = &mut proof.steps[0];
+            let (is_left, _) = &mut proof.steps[0];
             *is_left = !*is_left;
         }
 
@@ -816,7 +816,7 @@ mod tests {
         // Try to artificially *add* a sibling step that doesn't exist in the real path
         // We'll just push a random sibling step at the end
         let random_leaf = MerkleTreeSha256::hash_leaf(b"some_injected_sibling");
-        proof.steps.push((random_leaf, true /* is_left */));
+        proof.steps.push((true /* is_left */, random_leaf));
 
         // Now it must fail verification, because the path no longer corresponds
         // to the actual Merkle path for "bar"
