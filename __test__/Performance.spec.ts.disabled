@@ -1,9 +1,5 @@
 import test from 'ava';
-
-import { StandardMerkleTree } from '@btc-vision/merkle-tree';
 import { MerkleTree } from '../index.js';
-import { defaultAbiCoder } from '@ethersproject/abi';
-import { arrayify as toBytes } from '@ethersproject/bytes';
 
 function objToBytes(value: any): Uint8Array {
     const data = defaultAbiCoder.encode(['string'], value);
@@ -23,7 +19,7 @@ test('Test Performance compatibility', (t) => {
 
         now = performance.now();
         const newTree = new MerkleTree(
-            data.map((d) => objToBytes(d))
+            data.map((d) => objToBytes(d)),
         );
         newPerf += performance.now() - now;
 

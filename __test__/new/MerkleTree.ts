@@ -1,10 +1,14 @@
-import { MerkleTree as RustMerkleTree } from '../..';
-import { defaultAbiCoder } from '@ethersproject/abi';
-import { arrayify as toBytes } from '@ethersproject/bytes';
 import { Address, AddressMap } from '@btc-vision/transaction';
 import { BTC_FAKE_ADDRESS } from '../types/ZeroValue.js';
+import { MerkleTree as RustMerkleTree, safeInitRust } from '../../index.js';
 
-export abstract class MerkleTreeNew<K, V> {
+safeInitRust();
+
+export function toBytes(bytesStr: string): Buffer {
+    return Buffer.from(bytesStr.replace('0x', ''), 'hex');
+}
+
+export abstract class MerkleTree<K, V> {
     public static readonly DUMMY_ADDRESS_NON_EXISTENT: Address = BTC_FAKE_ADDRESS;
 
     public readonly values: AddressMap<Map<K, V>> = new AddressMap();
@@ -13,8 +17,6 @@ export abstract class MerkleTreeNew<K, V> {
     protected frozen: boolean = false;
 
     private readonly MINIMUM_VALUES = 2; // To generate a tree, we need at least 2 values
-
-    protected constructor(protected readonly treeType: [string, string]) {}
 
     public get root(): string {
         return this.tree.rootHex();
@@ -30,21 +32,11 @@ export abstract class MerkleTreeNew<K, V> {
         return this._tree;
     }
 
-    public toBytes(value: unknown[]): Uint8Array {
-        const data = defaultAbiCoder.encode(this.treeType, value);
-        return toBytes(data);
-    }
+    public abstract toBytes(value: unknown[]): Uint8Array;
 
     public getProofHashes(data: Buffer[]): Array<string> {
         return this.tree.getProof(this.tree.getIndexData(this.toBytes(data))).proofHashesHex();
     }
-
-    /*public verify(root: string, value: Buffer[] | Uint8Array[], proof: string[]): boolean {
-        return new MerkleProof(proof.map((p) => toBytes(p))).verify(
-            toBytes(root),
-            this.toBytes(value),
-        );
-    }*/
 
     public size(): number {
         return this.values.size;
@@ -111,10 +103,6 @@ export abstract class MerkleTreeNew<K, V> {
 
         this.frozen = true;
     }
-
-    /*public getData(): AddressMap<Map<K, V>> {
-        return this.values;
-    }*/
 
     public abstract getProofs(): AddressMap<Map<K, string[]>>;
 

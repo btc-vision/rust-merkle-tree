@@ -1,6 +1,6 @@
 import test from 'ava';
 import { randomAddress } from './generator.js';
-import { ReceiptMerkleTreeNew } from './new/ReceiptMerkleTreeNew.js';
+import { ReceiptMerkleTree } from './new/ReceiptMerkleTreeNew.js';
 
 test('Test ReceiptMerkleTree compatibility', (t) => {
     const contract = randomAddress();
@@ -13,7 +13,7 @@ test('Test ReceiptMerkleTree compatibility', (t) => {
     const transactionId7 = '0xaaa1';
     const transactionId8 = '0xaaa2';
 
-    const merkleNew = new ReceiptMerkleTreeNew();
+    const merkleNew = new ReceiptMerkleTree();
 
 
     merkleNew.updateValue(contract, transactionId1, new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
@@ -32,5 +32,5 @@ test('Test ReceiptMerkleTree compatibility', (t) => {
     merkleNew.generateTree();
 
     const proofNew = merkleNew.getProofs();
-    t.assert(merkleNew.root, "0x6c076f64d7eeb641a2d410614415c75fbfb06b58903e7d902dd2c2fc2dce12c6")
+    t.assert(merkleNew.root, '0x6c076f64d7eeb641a2d410614415c75fbfb06b58903e7d902dd2c2fc2dce12c6');
 });
