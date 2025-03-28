@@ -116,7 +116,7 @@ impl MerkleProofNormalSha256Js {
 }
 
 /// JavaScript-facing MerkleProof wrapper.
-#[napi(js_name = "MerkleProof")]
+#[napi(js_name = "MerkleProofCanonical")]
 pub struct MerkleProofCanonicalSha256Js {
     inner: MerkleProofCanonicalSha256,
 }
