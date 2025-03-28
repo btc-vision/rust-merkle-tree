@@ -43,10 +43,7 @@ pub type MerkleProofCanonicalSha256 = MerkleProofCanonical<Sha256Canonical>;
 #[cfg(test)]
 mod tests {
     use crate::domain::hash::{sha256::Sha256Canonical, HashMethod};
-    use crate::domain::proof::{
-        canonical::{MerkleProofCanonical, MerkleProofCanonicalSha256},
-        MerkleProofTrait,
-    };
+    use crate::domain::proof::{canonical::MerkleProofCanonical, MerkleProofTrait};
 
     #[test]
     fn test_no_steps_proof() {

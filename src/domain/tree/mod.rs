@@ -1,15 +1,11 @@
 use anyhow::{anyhow, Result};
 use log::{debug, info};
-use normal::MerkleTreeNormal;
 use rayon::prelude::*;
 use std::sync::Mutex;
 use std::time::Instant;
 
-use super::hash::sha256::Sha256Normal;
 use super::hash::HashMethod;
-use super::proof::MerkleProofTrait;
 
-//pub mod canonical;
 pub mod canonical;
 pub mod normal;
 

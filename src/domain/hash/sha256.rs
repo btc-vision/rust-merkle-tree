@@ -39,7 +39,7 @@ impl HashMethod for Sha256Canonical {
     fn hash_nodes(left: &[u8], right: &[u8]) -> Vec<u8> {
         // Single SHA-256 for internal nodes
         let mut hasher = Sha256::new();
-        if left.gt(right) {
+        if left.lt(right) {
             hasher.update(left);
             hasher.update(right);
         } else {

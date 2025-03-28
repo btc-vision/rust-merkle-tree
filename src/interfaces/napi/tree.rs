@@ -4,9 +4,7 @@ use napi::{Error, Status};
 use crate::domain::hash::sha256::Sha256Canonical;
 use crate::domain::hash::{sha256::Sha256Normal, HashMethod};
 use crate::domain::tree::canonical::MerkleTreeCanonicalSha256;
-use crate::domain::tree::{
-    canonical::MerkleTreeCanonical, normal::MerkleTreeNormalSha256, MerkleTreeTrait,
-};
+use crate::domain::tree::{normal::MerkleTreeNormalSha256, MerkleTreeTrait};
 use crate::interfaces::{MerkleProofCanonicalSha256Js, MerkleProofNormalSha256Js};
 
 #[napi(js_name = "MerkleTree")]
