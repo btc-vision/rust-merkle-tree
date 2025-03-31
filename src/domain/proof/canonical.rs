@@ -128,10 +128,10 @@ mod tests {
         // Leaf-level => double-hash: A, B, C, D
         // Internal nodes => single-hash: N1 = H(A,B), N2 = H(C,D)
         // Root => R = H(N1, N2)
-        let a = Sha256Canonical::hash_leaf(b"A");
-        let b = Sha256Canonical::hash_leaf(b"B");
-        let c = Sha256Canonical::hash_leaf(b"C");
-        let d = Sha256Canonical::hash_leaf(b"D");
+        let a = Sha256Canonical::hash_leaf(b"A1");
+        let b = Sha256Canonical::hash_leaf(b"B2");
+        let c = Sha256Canonical::hash_leaf(b"C3");
+        let d = Sha256Canonical::hash_leaf(b"D5");
 
         let n1 = Sha256Canonical::hash_nodes(&a, &b);
         let n2 = Sha256Canonical::hash_nodes(&c, &d);
@@ -180,5 +180,45 @@ mod tests {
             all_hashes[0], sibling_hash,
             "Proof hash must match the sibling's hash"
         );
+    }
+
+    #[test]
+    fn test_proof_order() {
+        // We'll construct a small Merkle structure by hand:
+        //         R
+        //       /   \
+        //     N1     N2
+        //    /  \   /  \
+        //   A    B C    D
+        // Leaf-level => double-hash: A, B, C, D
+        // Internal nodes => single-hash: N1 = H(A,B), N2 = H(C,D)
+        // Root => R = H(N1, N2)
+        let a = Sha256Canonical::hash_leaf(b"A1");
+        let b = Sha256Canonical::hash_leaf(b"B2");
+        let c = Sha256Canonical::hash_leaf(b"C3");
+        let d = Sha256Canonical::hash_leaf(b"D5");
+
+        let mut leaves = vec![a.clone(), b.clone(), c.clone(), d.clone()];
+        leaves.sort();
+
+        let n1 = Sha256Canonical::hash_nodes(&leaves[0], &leaves[1]);
+        let n2 = Sha256Canonical::hash_nodes(&leaves[2], &leaves[3]);
+        let r = Sha256Canonical::hash_nodes(&n1, &n2);
+
+        let proof_steps = vec![
+            leaves[1].clone(), // A is left
+            n2.clone(),        // N2 is right
+        ];
+        let proof = MerkleProofCanonical::<Sha256Canonical>::new(proof_steps);
+
+        // Verify
+        assert!(
+            proof.verify(&r, &leaves[0]),
+            "Manually built multi-step proof must match the final root"
+        );
+
+        // Confirm it fails if we supply the wrong root
+        let fake_root = Sha256Canonical::hash_leaf(b"fake_root");
+        assert!(!proof.verify(&fake_root, &b), "Wrong root must fail");
     }
 }

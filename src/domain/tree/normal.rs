@@ -633,7 +633,6 @@ mod tests {
     /// ------------------------------------------------------------------------
     /// Test Efficiency with Large Leaf Data + Many Leaves
     /// ------------------------------------------------------------------------
-    /*
     #[test]
     fn test_large_data_and_many_leaves_efficiency() {
         // Simulate a "block" with bigger "transactions" (8 KB each).
@@ -660,7 +659,6 @@ mod tests {
             );
         }
     }
-     */
 
     /// ------------------------------------------------------------------------
     /// Test Malicious or Invalid Leaf Data
