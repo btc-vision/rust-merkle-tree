@@ -8,7 +8,7 @@
  * We only call `INIT.call_once(...)` to ensure it’s done once.
  */
 export declare function safeInitRust(): void
-export type MerkleProofJs = MerkleProof
+export type MerkleProofNormalSha256Js = MerkleProof
 /** JavaScript-facing MerkleProof wrapper. */
 export declare class MerkleProof {
   /**
@@ -32,7 +32,31 @@ export declare class MerkleProof {
   proofHashes(): Array<Uint8Array>
   proofHashesHex(): Array<string>
 }
-export type MerkleTreeJs = MerkleTree
+export type MerkleProofCanonicalSha256Js = MerkleProofCanonical
+/** JavaScript-facing MerkleProof wrapper. */
+export declare class MerkleProofCanonical {
+  /**
+   * Constructor that expects each step to have a single `Uint8Array` of length 33:
+   *   * byte 0 => 0x01 if is_left=true, or 0x00 if is_left=false
+   *   * bytes 1..=32 => the sibling's hash
+   */
+  constructor(steps: Array<Uint8Array>)
+  /** Return true or false for a given root and leaf-hash. */
+  verify(root: Uint8Array, leaf: Uint8Array): boolean
+  /** Like verify, but we first do double-hash of `data` to get the leaf-hash. */
+  verifyData(root: Uint8Array, data: Uint8Array): boolean
+  /** Return the computed Merkle root when starting from `leaf_hash`. */
+  root(leafHash: Uint8Array): Uint8Array
+  rootHex(leafHash: Uint8Array): string
+  /**
+   * Return each proof step as a 33-byte array:
+   *   * byte 0 => 0x01 if is_left=true, else 0x00
+   *   * bytes 1..=32 => the sibling hash
+   */
+  proofHashes(): Array<Uint8Array>
+  proofHashesHex(): Array<string>
+}
+export type MerkleTreeNormalSha256Js = MerkleTree
 export declare class MerkleTree {
   /** Hash a piece of data using the library's leaf-hash function (double SHA-256). */
   static hash(data: Uint8Array): Uint8Array
@@ -46,6 +70,25 @@ export declare class MerkleTree {
   rootHex(): string
   /** Create a proof for a specific leaf index. */
   getProof(leafIndex: number): MerkleProof
+  /** Return the index of `data` (double-hashed) in the tree, or error if not found. */
+  getIndexData(data: Uint8Array): number
+  /** Return the index of a hashed leaf in the tree, or error if not found. */
+  getIndexHash(hash: Uint8Array): number
+}
+export type MerkleTreeCanonicalSha256Js = MerkleTreeCanonical
+export declare class MerkleTreeCanonical {
+  /** Hash a piece of data using the library's leaf-hash function (double SHA-256). */
+  static hash(data: Uint8Array): Uint8Array
+  /** Build a Merkle tree from raw leaves data. */
+  constructor(leaves: Array<Uint8Array>)
+  /** Returns the underlying tree's leaf-level (hashed) data. */
+  hashes(): Array<Uint8Array>
+  /** Return the Merkle root as bytes. */
+  root(): Uint8Array
+  /** Return the Merkle root in hex format, 0x-prefixed. */
+  rootHex(): string
+  /** Create a proof for a specific leaf index. */
+  getProof(leafIndex: number): MerkleProofCanonical
   /** Return the index of `data` (double-hashed) in the tree, or error if not found. */
   getIndexData(data: Uint8Array): number
   /** Return the index of a hashed leaf in the tree, or error if not found. */
