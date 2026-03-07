@@ -46,6 +46,7 @@ impl<Method: HashMethod> MerkleTreeTrait<Method> for MerkleTreeCanonical<Method>
     }
 
     /// Return the index of a hashed leaf in the array, or error if not found.
+    /// Note: for duplicate leaves, this returns the first occurrence only.
     fn get_index_by_hash(&self, hash: &[u8]) -> Result<usize> {
         self.tree
             .iter()
@@ -96,7 +97,7 @@ mod tests {
         proof::MerkleProofTrait,
         tree::{canonical::MerkleTreeCanonicalSha256, MerkleTreeTrait},
     };
-    use rand::Rng;
+    use rand::RngExt;
     use std::sync::Arc;
     use std::thread;
 
@@ -547,17 +548,30 @@ mod tests {
             .expect("Tree must handle duplicates");
 
         let root = tree.get_root();
+        let leaf_hash = Sha256Canonical::hash_leaf(b"tx");
 
-        // All leaves are identical. But each is stored in a different position.
-        // We'll just check that we can generate a proof for each.
-        for _i in 0..4 {
-            let proof = tree
-                .get_proof(tree.get_index_by_data(b"tx").unwrap())
-                .unwrap();
-            let leaf_hash = Sha256Canonical::hash_leaf(b"tx");
+        // Find all leaf positions directly (get_index_by_hash only returns the first).
+        let leaf_start = tree.tree.len() / 2;
+        let positions: Vec<usize> = tree
+            .tree
+            .iter()
+            .enumerate()
+            .skip(leaf_start)
+            .filter_map(|(i, h)| if *h == leaf_hash { Some(i) } else { None })
+            .collect();
+
+        assert_eq!(
+            positions.len(),
+            4,
+            "All 4 duplicate leaves must be present in the tree"
+        );
+
+        // Verify a proof for each distinct position
+        for &idx in &positions {
+            let proof = tree.get_proof(idx).unwrap();
             assert!(
                 proof.verify(&root, &leaf_hash),
-                "Proof must verify for each identical leaf"
+                "Proof must verify for duplicate leaf at index {idx}"
             );
         }
     }

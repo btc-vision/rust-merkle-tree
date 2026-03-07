@@ -11,3 +11,56 @@ yarn.lock
 .yarn
 __test__
 renovate.json
+
+# Build artifacts
+target/
+*.log
+
+# Development files
+.github/
+.gitignore
+.editorconfig
+docs/
+tests/
+benches/
+examples/
+
+# CI artifacts
+artifacts/
+*.tar.gz
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+src/**/*_test.rs
+src/**/*_tests.rs
+src/**/test_*.rs
+src/**/tests/
+
+# Documentation
+*.md
+!README.md
+
+# Configuration files not needed for builds
+.rustfmt.toml
+.clippy.toml
+rust-toolchain.toml
+deny.toml
+vitest.config.ts
+
+# Backup/temp files
+*.bak
+*.backup
+*.tmp
+temp/
+tmp/
+AUDIT/
