@@ -154,7 +154,7 @@ jobs:
           path: artifacts
 
       - name: Combine binaries
-        run: npx napi universal
+        run: npx napi universalize
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6

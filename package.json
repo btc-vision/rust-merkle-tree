@@ -7,18 +7,19 @@
     "type": "commonjs",
     "homepage": "https://opnet.org/",
     "napi": {
-        "name": "rust-merkle-tree",
-        "triples": {
-            "additional": [
-                "aarch64-apple-darwin",
-                "aarch64-linux-android",
-                "aarch64-unknown-linux-gnu",
-                "aarch64-unknown-linux-musl",
-                "aarch64-pc-windows-msvc",
-                "x86_64-unknown-linux-musl",
-                "universal-apple-darwin"
-            ]
-        }
+        "binaryName": "rust-merkle-tree",
+        "targets": [
+            "x86_64-apple-darwin",
+            "aarch64-apple-darwin",
+            "universal-apple-darwin",
+            "x86_64-pc-windows-msvc",
+            "aarch64-pc-windows-msvc",
+            "x86_64-unknown-linux-gnu",
+            "aarch64-unknown-linux-gnu",
+            "x86_64-unknown-linux-musl",
+            "aarch64-unknown-linux-musl",
+            "aarch64-linux-android"
+        ]
     },
     "author": "ORANGE PILLS INC",
     "license": "MIT",
@@ -36,7 +37,7 @@
         "build:debug": "napi build --platform",
         "prepublishOnly": "napi prepublish -t npm",
         "test": "vitest run",
-        "universal": "napi universal",
+        "universal": "napi universalize",
         "version": "napi version",
         "coverage": "cargo llvm-cov clean --workspace && cargo llvm-cov --workspace --open"
     },
