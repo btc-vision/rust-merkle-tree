@@ -88,7 +88,7 @@ jobs:
           subject-path: ${{ env.APP_NAME }}.*.node
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.settings.target }}
           path: ${{ env.APP_NAME }}.*.node
@@ -157,7 +157,7 @@ jobs:
         run: npx napi universalize
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: bindings-universal-apple-darwin
           path: ${{ env.APP_NAME }}.*.node
