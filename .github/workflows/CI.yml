@@ -145,13 +145,13 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: bindings-x86_64-apple-darwin
-          path: artifacts
+          path: .
 
       - name: Download macOS arm64 artifact
         uses: actions/download-artifact@v7
         with:
           name: bindings-aarch64-apple-darwin
-          path: artifacts
+          path: .
 
       - name: Combine binaries
         run: npx napi universalize
