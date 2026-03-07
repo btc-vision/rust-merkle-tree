@@ -1,8 +1,9 @@
-import test from 'ava';
+import { expect, it } from 'vitest';
+
 import { randomAddress } from './generator.js';
 import { ReceiptMerkleTree } from './new/ReceiptMerkleTreeNew.js';
 
-test('Test ReceiptMerkleTree compatibility', (t) => {
+it('Test ReceiptMerkleTree compatibility', () => {
     const contract = randomAddress();
     const transactionId1 = '0xaaa0';
     const transactionId2 = '0xaaab';
@@ -14,7 +15,6 @@ test('Test ReceiptMerkleTree compatibility', (t) => {
     const transactionId8 = '0xaaa2';
 
     const merkleNew = new ReceiptMerkleTree();
-
 
     merkleNew.updateValue(contract, transactionId1, new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
     merkleNew.updateValue(contract, transactionId2, new Uint8Array([2, 3, 4, 5, 6, 7, 8, 9]));
@@ -32,5 +32,7 @@ test('Test ReceiptMerkleTree compatibility', (t) => {
     merkleNew.generateTree();
 
     const proofNew = merkleNew.getProofs();
-    t.assert(merkleNew.root, '0x6c076f64d7eeb641a2d410614415c75fbfb06b58903e7d902dd2c2fc2dce12c6');
+    expect(merkleNew.root).toBe(
+        '0x6c076f64d7eeb641a2d410614415c75fbfb06b58903e7d902dd2c2fc2dce12c6',
+    );
 });

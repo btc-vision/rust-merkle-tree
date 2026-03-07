@@ -23,37 +23,9 @@
     "author": "ORANGE PILLS INC",
     "license": "MIT",
     "devDependencies": {
-        "@ava/typescript": "^6.0.0",
-        "@babel/core": "^7.29.0",
-        "@babel/plugin-transform-modules-commonjs": "^7.28.6",
-        "@babel/preset-env": "^7.29.0",
-        "@babel/preset-typescript": "^7.28.5",
-        "@babel/register": "^7.28.6",
-        "@jest/globals": "^30.2.0",
         "@napi-rs/cli": "^3.5.1",
-        "@swc-node/register": "^1.11.1",
         "@types/node": "^25.3.5",
-        "ava": "^7.0.0",
-        "babel-jest": "^30.2.0",
-        "ts-jest": "^29.4.6",
-        "ts-node": "^10.9.2"
-    },
-    "ava": {
-        "extensions": {
-            "ts": "module"
-        },
-        "environmentVariables": {
-            "TS_NODE_PROJECT": "./tsconfig.json"
-        },
-        "timeout": "10m",
-        "verbose": true,
-        "babel": true,
-        "nodeArguments": [
-            "--trace-deprecation",
-            "--napi-modules",
-            "--import",
-            "@swc-node/register/esm-register"
-        ]
+        "vitest": "^4.0.18"
     },
     "engines": {
         "node": ">= 24"
@@ -63,7 +35,7 @@
         "build": "napi build --platform --release",
         "build:debug": "napi build --platform",
         "prepublishOnly": "napi prepublish -t npm",
-        "test": "ava --verbose",
+        "test": "vitest run",
         "universal": "napi universal",
         "version": "napi version",
         "coverage": "cargo llvm-cov clean --workspace && cargo llvm-cov --workspace --open"
@@ -75,7 +47,6 @@
     "dependencies": {
         "@btc-vision/bitcoin": "^7.0.0",
         "@btc-vision/transaction": "^1.8.0",
-        "jest": "^30.2.0",
         "sha.js": "^2.4.12",
         "sha256": "^0.2.0",
         "tsx": "^4.21.0"

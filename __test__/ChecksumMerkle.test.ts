@@ -1,4 +1,4 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it } from 'vitest';
 
 import { ChecksumMerkle } from './new/ChecksumMerkleNew.ts';
 import { toBytes } from './new/MerkleTree.js';

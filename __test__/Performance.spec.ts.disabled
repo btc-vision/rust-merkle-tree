@@ -1,4 +1,5 @@
-import test from 'ava';
+import { expect, it } from 'vitest';
+
 import { MerkleTree } from '../index.js';
 
 function objToBytes(value: any): Uint8Array {
@@ -6,7 +7,7 @@ function objToBytes(value: any): Uint8Array {
     return toBytes(data);
 }
 
-test('Test Performance compatibility', (t) => {
+it('Test Performance compatibility', () => {
     let oldPerf = 0;
     let newPerf = 0;
     let now = 0;
@@ -18,12 +19,10 @@ test('Test Performance compatibility', (t) => {
         oldPerf += performance.now() - now;
 
         now = performance.now();
-        const newTree = new MerkleTree(
-            data.map((d) => objToBytes(d)),
-        );
+        const newTree = new MerkleTree(data.map((d) => objToBytes(d)));
         newPerf += performance.now() - now;
 
-        t.assert(oldTree.root, newTree.rootHex());
+        expect(oldTree.root).toBe(newTree.rootHex());
 
         for (let d of data) {
             now = performance.now();
@@ -39,10 +38,10 @@ test('Test Performance compatibility', (t) => {
     }
 
     console.log('Performance data lookup: ', newPerf, oldPerf);
-    t.assert(newPerf < oldPerf);
+    expect(newPerf).toBeLessThan(oldPerf);
 });
 
-test('Test Performance compatibility indexed', (t) => {
+it('Test Performance compatibility indexed', () => {
     let oldPerf = 0;
     let newPerf = 0;
     let now = 0;
@@ -54,12 +53,10 @@ test('Test Performance compatibility indexed', (t) => {
         oldPerf += performance.now() - now;
 
         now = performance.now();
-        const newTree = new MerkleTree(
-            data.map((d) => objToBytes(d)),
-        );
+        const newTree = new MerkleTree(data.map((d) => objToBytes(d)));
         newPerf += performance.now() - now;
 
-        t.assert(oldTree.root, newTree.rootHex());
+        expect(oldTree.root).toBe(newTree.rootHex());
 
         for (let i = 0; i < data.length; i++) {
             now = performance.now();
@@ -75,10 +72,10 @@ test('Test Performance compatibility indexed', (t) => {
     }
 
     console.log('Performance indexed: ', newPerf, oldPerf);
-    t.assert(newPerf < oldPerf);
+    expect(newPerf).toBeLessThan(oldPerf);
 });
 
-test('Test Performance', (t) => {
+it('Test Performance', () => {
     let oldPerf = 0;
     let newPerf = 0;
     let now = 0;
@@ -90,9 +87,7 @@ test('Test Performance', (t) => {
         oldPerf += performance.now() - now;
 
         now = performance.now();
-        const newTree = new MerkleTree(
-            data.map((d) => objToBytes(d)),
-        );
+        const newTree = new MerkleTree(data.map((d) => objToBytes(d)));
         newPerf += performance.now() - now;
 
         const a = Date.now();
@@ -108,9 +103,9 @@ test('Test Performance', (t) => {
         }
         console.log('Proofs: ', Date.now() - start + 'ms');
 
-        t.assert(oldTree.root, newTree.rootHex());
+        expect(oldTree.root).toBe(newTree.rootHex());
     }
 
     console.log('Performance building: ', newPerf, oldPerf);
-    t.assert(newPerf < oldPerf);
+    expect(newPerf).toBeLessThan(oldPerf);
 });
