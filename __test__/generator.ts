@@ -5,5 +5,7 @@ export const NETWORK = networks.regtest;
 
 export function randomAddress(): Address {
     const rndKeyPair = EcKeyPair.generateRandomKeyPair(NETWORK);
-    return new Address(rndKeyPair.publicKey);
+    const rndBytes = crypto.getRandomValues(new Uint8Array(32));
+
+    return new Address(rndBytes, rndKeyPair.publicKey);
 }

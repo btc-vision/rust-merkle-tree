@@ -96,7 +96,7 @@ mod tests {
         proof::MerkleProofTrait,
         tree::{canonical::MerkleTreeCanonicalSha256, MerkleTreeTrait},
     };
-    use rand::Rng;
+    use rand::RngExt;
     use std::sync::Arc;
     use std::thread;
 
