@@ -1,6 +1,8 @@
 # Merkle Tree Library
 
 ![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)
+![Bitcoin](https://img.shields.io/badge/Bitcoin-000?style=for-the-badge&logo=bitcoin&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![NodeJS](https://img.shields.io/badge/Node%20js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![NPM](https://img.shields.io/badge/npm-CB3837?style=for-the-badge&logo=npm&logoColor=white)
 
@@ -15,6 +17,23 @@ Rust and Node.js applications. The library leverages SHA-256 as its cryptographi
 secure against known vulnerabilities, ensuring robust state proof validations. Optimized for both performance and
 security, this library is intended for use in applications that require strong data integrity and validation mechanisms.
 
+## Security Audit
+
+<p align="center">
+  <a href="https://verichains.io/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="./AUDIT/verichains-logo.svg">
+      <source media="(prefers-color-scheme: light)" srcset="./AUDIT/verichains-logo-dark.svg">
+      <img alt="Verichains" src="./AUDIT/verichains-logo.svg" height="32">
+    </picture>
+  </a>
+</p>
+
+This library has been professionally audited by **[Verichains](https://verichains.io/)**, a leading blockchain security
+firm. The audit confirms that the codebase is secure and ready for production use.
+
+For audit reports and details, see the [AUDIT](./AUDIT) directory.
+
 ## Key Features
 
 - **SHA-256 Hashing**: Utilizes the SHA-256 hashing algorithm to ensure cryptographic security.
@@ -25,25 +44,12 @@ security, this library is intended for use in applications that require strong d
   implementations like `merkle-tree-sha256`.
 - **Comprehensive Testing**: Includes a suite of tests to ensure the library performs securely and accurately.
 
-## Table of Contents
-
-- [Project Overview](#overview)
-- [Key Features](#key-features)
-- [Getting Started](#getting-started)
-- [Usage](#usage)
-    - [Rust Usage](#rust-usage)
-    - [Node.js Usage](#nodejs-usage)
-- [Installation](#installation)
-- [References](#references)
-- [Contributing](#contributing)
-
 ## Getting Started
 
 ### Prerequisites
 
-- **Rust**: Ensure you have Rust installed. The recommended version is stable 1.56+.
-- **Node.js**: Version 16 or higher is required.
-- **napi-rs**: Used to interface the Rust code with Node.js.
+- **Node.js**: Version 24/25+ or higher is required.
+- **Rust**: You must have Rust installed to compile and develop this project.
 
 ### Installation
 
@@ -106,19 +112,28 @@ For Node.js integration, the library provides bindings via N-API.
    console.log('Merkle Root:', tree.root());
    ```
 
+### Scripts
+
+- **`npm run build`**: Compiles the Rust code into a release binary.
+- **`npm run build:debug`**: Compiles the Rust code with debug information.
+- **`npm test`**: Runs the test suite.
+- **`npm run coverage`**: Generates Rust code coverage report.
+
 ## References
 
 - **Current Rust Merkle Tree Implementation**: [rs-merkle](https://github.com/antouhou/rs-merkle)
 - **SHA-256 Merkle Tree for Node.js**: [merkle-tree-sha256](https://github.com/btc-vision/merkle-tree-sha256)
 - **N-API for Rust Integration**: [napi.rs](https://napi.rs/)
 
-Check the `example/` folder for usage examples and to compare performance with the current `merkle-tree-sha256` package.
-
 ## Contributing
 
-Contributions are welcome! Please adhere to the code of conduct and sign all commits. Open an issue or submit a pull
-request if you encounter any problems or have suggestions for improving the library.
+Contributions are welcome! If you encounter any issues or have suggestions for improvement, feel free to open an issue
+or submit a pull request. Signed commits are required, and please adhere to the project's code of conduct.
 
 ## License
 
 This project is licensed under the MIT License. For more details, please see the [LICENSE](LICENSE) file.
+
+## Contact
+
+For more information, visit the [OP_NET homepage](https://opnet.org/) or reach out via the repository's GitHub page.
