@@ -25,8 +25,8 @@
     "license": "MIT",
     "devDependencies": {
         "@napi-rs/cli": "^3.5.1",
-        "@types/node": "^25.3.5",
-        "vitest": "^4.0.18"
+        "@types/node": "^25.5.0",
+        "vitest": "^4.1.0"
     },
     "engines": {
         "node": ">= 24"
@@ -47,7 +47,7 @@
     },
     "dependencies": {
         "@btc-vision/bitcoin": "^7.0.0",
-        "@btc-vision/transaction": "^1.8.0",
+        "@btc-vision/transaction": "^1.8.2",
         "sha.js": "^2.4.12",
         "sha256": "^0.2.0",
         "tsx": "^4.21.0"
